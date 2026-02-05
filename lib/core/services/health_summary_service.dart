@@ -34,8 +34,9 @@ class HealthSummaryService {
 
       return response['summary'];
     } catch (e) {
-      // Return null if no summary found (404)
-      if (e.toString().contains('404')) {
+      // Return null if no summary found (404 or specific error message)
+      if (e.toString().contains('404') ||
+          e.toString().contains('No health summary found')) {
         return null;
       }
       print('Error fetching latest health summary: $e');

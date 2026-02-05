@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_logo.dart';
@@ -18,12 +19,78 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   String? _phoneError;
+  bool _hasShownErrorDialog = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Listen to auth provider changes
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndShowError();
+    });
+  }
 
   @override
   void dispose() {
     _phoneController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  void _checkAndShowError() {
+    final authProvider = context.read<AuthProvider>();
+    final errorMessage = authProvider.errorMessage;
+    
+    if (errorMessage != null && !_hasShownErrorDialog && !authProvider.isLoading) {
+      final cleanedPhone = _phoneController.text.replaceAll(RegExp(r'\D'), '');
+      
+      _hasShownErrorDialog = true;
+      
+      // Check if account is blocked
+      if (authProvider.isPhoneBlocked(cleanedPhone)) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => _buildBlockedDialog(ctx, cleanedPhone),
+        ).then((_) => _hasShownErrorDialog = false);
+      } else if (errorMessage.toLowerCase().contains('incorrect password')) {
+        final remaining = authProvider.getRemainingAttempts(cleanedPhone);
+        showDialog(
+          context: context,
+          builder: (ctx) => _buildIncorrectPasswordDialog(ctx, errorMessage, remaining, cleanedPhone),
+        ).then((_) => _hasShownErrorDialog = false);
+      } else if (errorMessage.toLowerCase().contains('mobile number not registered') ||
+          errorMessage.toLowerCase().contains('not registered')) {
+        showDialog(
+          context: context,
+          builder: (ctx) => _buildUnregisteredNumberDialog(ctx),
+        ).then((_) => _hasShownErrorDialog = false);
+      } else if (errorMessage.toLowerCase().contains('not verified')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: AppColors.error,
+            action: SnackBarAction(
+              label: 'Verify',
+              textColor: Colors.white,
+              onPressed: () {
+                Navigator.of(context).pushNamed('/otp-verification', arguments: {
+                  'email': '',
+                  'phone': cleanedPhone,
+                  'isPasswordReset': false,
+                });
+              },
+            ),
+          ),
+        );
+        _hasShownErrorDialog = false;
+      } else {
+        showDialog(
+          context: context,
+          builder: (ctx) => _buildGenericErrorDialog(ctx, errorMessage),
+        ).then((_) => _hasShownErrorDialog = false);
+      }
+    }
   }
 
   String? _validatePhoneNumber(String? value) {
@@ -42,9 +109,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   bool get _isPhoneValid {
-    final value = _phoneController.text;
-    if (value.isEmpty) return false;
-    final cleaned = value.replaceAll(RegExp(r'\D'), '');
+    final cleaned = _phoneController.text.replaceAll(RegExp(r'\D'), '');
     return cleaned.length == 10;
   }
 
@@ -55,175 +120,143 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
-    if (_formKey.currentState!.validate()) {
-      // Additional phone validation check
-      if (!_isPhoneValid) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please enter a valid 10-digit phone number'),
-            backgroundColor: AppColors.error,
-          ),
+    print('🔍 Login button pressed');
+    
+    if (!_formKey.currentState!.validate()) {
+      print('🔍 Form validation failed');
+      return;
+    }
+
+    final authProvider = context.read<AuthProvider>();
+    final cleanedPhone = _phoneController.text.replaceAll(RegExp(r'\D'), '');
+
+    // Check if phone is blocked before attempting login
+    if (authProvider.isPhoneBlocked(cleanedPhone)) {
+      print('🔍 Phone is blocked, showing dialog');
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => _buildBlockedDialog(ctx, cleanedPhone),
         );
-        return;
       }
+      return;
+    }
 
-      // Clean phone number (remove any non-digit characters)
-      final cleanedPhone = _phoneController.text.replaceAll(RegExp(r'\D'), '');
+    print('🔍 Calling authProvider.login');
+    final success = await authProvider.login(
+      _phoneController.text,
+      _passwordController.text,
+    );
 
-      final authProvider = context.read<AuthProvider>();
+    print('🔍 Login result: $success');
+    print('🔍 Widget mounted: $mounted');
 
-      // Check if phone is blocked before attempting login
-      if (authProvider.isPhoneBlocked(cleanedPhone)) {
-        _showBlockedDialog(cleanedPhone);
-        return;
-      }
-
-      final success = await authProvider.login(
-        cleanedPhone,
-        _passwordController.text,
-      );
-
-      if (success && mounted) {
-        Navigator.of(context).pushReplacementNamed('/home');
-      } else if (mounted) {
-        final errorMessage = authProvider.errorMessage ?? 'Login failed';
-
-        // Check if account is now blocked
-        if (authProvider.isPhoneBlocked(cleanedPhone)) {
-          _showBlockedDialog(cleanedPhone);
-        } else if (errorMessage.toLowerCase().contains('invalid credentials') ||
-            errorMessage.toLowerCase().contains('incorrect password') ||
-            errorMessage.toLowerCase().contains('password')) {
-          // Show remaining attempts
-          final remaining = authProvider.getRemainingAttempts(cleanedPhone);
-          _showIncorrectPasswordDialog(errorMessage, remaining);
-        } else {
-          // Show snackbar for other errors
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(errorMessage),
-              backgroundColor: AppColors.error,
-              action: errorMessage.toLowerCase().contains('not verified')
-                  ? SnackBarAction(
-                      label: 'Verify',
-                      textColor: Colors.white,
-                      onPressed: () {
-                        Navigator.of(context)
-                            .pushNamed('/otp-verification', arguments: {
-                          'email': '',
-                          'phone': cleanedPhone,
-                          'isPasswordReset': false,
-                        });
-                      },
-                    )
-                  : null,
-            ),
-          );
-        }
-      }
+    if (success && mounted) {
+      Navigator.of(context).pushReplacementNamed('/home');
+    } else if (mounted) {
+      // Trigger error check in next frame
+      _hasShownErrorDialog = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _checkAndShowError();
+      });
     }
   }
 
-  void _showIncorrectPasswordDialog(String message, int remaining) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: const Row(
-          children: [
-            Icon(Icons.error_outline, color: AppColors.error, size: 28),
-            SizedBox(width: 12),
-            Text('Incorrect Password'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'The password you entered is incorrect.',
-              style: TextStyle(fontSize: 16),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: remaining <= 2
-                    ? AppColors.error.withOpacity(0.1)
-                    : AppColors.warning.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: remaining <= 2 ? AppColors.error : AppColors.warning,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.warning_amber_rounded,
-                    color: remaining <= 2 ? AppColors.error : AppColors.warning,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '$remaining attempt${remaining == 1 ? '' : 's'} remaining',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: remaining <= 2
-                            ? AppColors.error
-                            : AppColors.warning,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (remaining <= 2) ...[
-              const SizedBox(height: 8),
-              const Text(
-                'Your account will be locked after all attempts are used.',
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-              ),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Try Again'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pushNamed('/forgot-password');
-            },
-            child: const Text('Reset Password'),
-          ),
+  Widget _buildIncorrectPasswordDialog(BuildContext context, String message, int remaining, String phone) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      title: const Row(
+        children: [
+          Icon(Icons.error_outline, color: AppColors.error, size: 28),
+          SizedBox(width: 12),
+          Text('Incorrect Password'),
         ],
       ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'The password you entered is incorrect.',
+            style: TextStyle(fontSize: 16),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: remaining <= 2
+                  ? AppColors.error.withOpacity(0.1)
+                  : AppColors.warning.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: remaining <= 2 ? AppColors.error : AppColors.warning,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  color: remaining <= 2 ? AppColors.error : AppColors.warning,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '$remaining attempt${remaining == 1 ? '' : 's'} remaining',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: remaining <= 2
+                          ? AppColors.error
+                          : AppColors.warning,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (remaining <= 2) ...[
+            const SizedBox(height: 8),
+            const Text(
+              'Your account will be locked after all attempts are used.',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Try Again'),
+        ),
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+            Navigator.of(context).pushNamed('/forgot-password');
+          },
+          child: const Text('Reset Password'),
+        ),
+      ],
     );
   }
 
-  void _showBlockedDialog(String phone) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: const Row(
-          children: [
-            Icon(Icons.lock_outline, color: AppColors.error, size: 28),
-            SizedBox(width: 12),
-            Text('Account Locked'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+  Widget _buildBlockedDialog(BuildContext context, String phone) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      title: const Row(
+        children: [
+          Icon(Icons.lock_outline, color: AppColors.error, size: 28),
+          SizedBox(width: 12),
+          Text('Account Locked'),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
             const Text(
               'Your account has been temporarily locked due to too many failed login attempts.',
               style: TextStyle(fontSize: 16),
@@ -268,37 +301,107 @@ class _LoginScreenState extends State<LoginScreen> {
                     style: TextStyle(fontSize: 13),
                   ),
                 ],
-              ),
             ),
-            const SizedBox(height: 12),
-            const Text(
-              'The OTP will authorize you to change your password.',
-              style: TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondary,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
           ),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pushNamed('/forgot-password');
-            },
-            icon: const Icon(Icons.lock_reset),
-            label: const Text('Reset Password'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
+          const SizedBox(height: 12),
+          const Text(
+            'The OTP will authorize you to change your password.',
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+              fontStyle: FontStyle.italic,
             ),
           ),
         ],
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton.icon(
+          onPressed: () {
+            Navigator.of(context).pop();
+            Navigator.of(context).pushNamed('/forgot-password');
+          },
+          icon: const Icon(Icons.lock_reset),
+          label: const Text('Reset Password'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildUnregisteredNumberDialog(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      title: const Row(
+        children: [
+          Icon(Icons.person_off_outlined, color: AppColors.error, size: 28),
+          SizedBox(width: 12),
+          Text('Not Registered'),
+        ],
+      ),
+      content: const Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Mobile number not registered.',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          SizedBox(height: 12),
+          Text(
+            'This mobile number is not associated with any account. Please check the number or create a new account.',
+            style: TextStyle(fontSize: 14),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Try Again'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+            Navigator.of(context).pushNamed('/register');
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+          ),
+          child: const Text('Register'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGenericErrorDialog(BuildContext context, String message) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      title: const Row(
+        children: [
+          Icon(Icons.error_outline, color: AppColors.error, size: 28),
+          SizedBox(width: 12),
+          Text('Login Failed'),
+        ],
+      ),
+      content: Text(
+        message,
+        style: const TextStyle(fontSize: 16),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('OK'),
+        ),
+      ],
     );
   }
 

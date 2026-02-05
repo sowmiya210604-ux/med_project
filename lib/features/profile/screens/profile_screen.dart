@@ -9,6 +9,8 @@ import 'edit_profile_screen.dart';
 import 'notification_settings_screen.dart';
 import 'privacy_security_screen.dart';
 import 'help_support_screen.dart';
+import 'terms_of_service_screen.dart';
+import 'privacy_policy_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -24,11 +26,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    // Fetch latest profile data when screen loads
-    _fetchProfileData();
+    print('🔵 ProfileScreen: initState called');
+    // Fetch latest profile data after the widget is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final authProvider = context.read<AuthProvider>();
+        // Only fetch if we don't have current user data
+        if (authProvider.currentUser == null) {
+          print('🔵 ProfileScreen: Fetching profile data...');
+          _fetchProfileData();
+        } else {
+          print('🔵 ProfileScreen: User data already exists, skipping fetch');
+        }
+      }
+    });
   }
 
   Future<void> _fetchProfileData() async {
+    if (!mounted) return;
+    
     setState(() {
       _isLoadingProfile = true;
     });
@@ -212,25 +228,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
-        // Override back button to navigate to home screen
-        Navigator.of(context).pushReplacementNamed('/home');
-        return false; // Prevent default back navigation
-      },
-      child: Scaffold(
+    print('🔵 ProfileScreen: build() called');
+    return Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppColors.primary),
-            onPressed: () {
-              // Navigate to home screen instead of popping
-              Navigator.of(context).pushReplacementNamed('/home');
-            },
-            tooltip: 'Back to Home',
-          ),
+          automaticallyImplyLeading: false,
           title: const Text(
             'Profile',
             style: TextStyle(color: AppColors.textPrimary),
@@ -414,7 +418,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             'Terms of Service',
                             Icons.description,
                             () {
-                              // TODO: Show terms
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const TermsOfServiceScreen(),
+                                ),
+                              );
                             },
                           ),
                           _buildActionTile(
@@ -422,7 +432,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             'Privacy Policy',
                             Icons.policy,
                             () {
-                              // TODO: Show privacy policy
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const PrivacyPolicyScreen(),
+                                ),
+                              );
                             },
                           ),
                           _buildInfoTile(
@@ -474,7 +490,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             },
           ),
         ),
-      ),
     );
   }
 

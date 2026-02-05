@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/theme/app_colors.dart';
 
 class NotificationSettingsScreen extends StatefulWidget {
@@ -18,9 +19,81 @@ class _NotificationSettingsScreenState
   bool _emailNotifications = true;
   bool _pushNotifications = true;
   bool _smsNotifications = false;
+  bool _isLoading = true;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _appointmentReminders = prefs.getBool('appointment_reminders') ?? true;
+      _testResultsReady = prefs.getBool('test_results_ready') ?? true;
+      _medicationReminders = prefs.getBool('medication_reminders') ?? true;
+      _healthTips = prefs.getBool('health_tips') ?? false;
+      _emailNotifications = prefs.getBool('email_notifications') ?? true;
+      _pushNotifications = prefs.getBool('push_notifications') ?? true;
+      _smsNotifications = prefs.getBool('sms_notifications') ?? false;
+      _isLoading = false;
+    });
+  }
+
+  Future<void> _saveSettings() async {
+    setState(() => _isSaving = true);
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('appointment_reminders', _appointmentReminders);
+      await prefs.setBool('test_results_ready', _testResultsReady);
+      await prefs.setBool('medication_reminders', _medicationReminders);
+      await prefs.setBool('health_tips', _healthTips);
+      await prefs.setBool('email_notifications', _emailNotifications);
+      await prefs.setBool('push_notifications', _pushNotifications);
+      await prefs.setBool('sms_notifications', _smsNotifications);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Notification settings saved successfully'),
+            backgroundColor: AppColors.success,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save settings: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Notification Settings'),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Notification Settings'),
@@ -92,21 +165,23 @@ class _NotificationSettingsScreenState
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: ElevatedButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Notification settings saved successfully'),
-                    backgroundColor: AppColors.success,
-                  ),
-                );
-                Navigator.pop(context);
-              },
+              onPressed: _isSaving ? null : _saveSettings,
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 50),
               ),
-              child: const Text('Save Settings'),
+              child: _isSaving
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Text('Save Settings'),
             ),
           ),
+          const SizedBox(height: 16),
         ],
       ),
     );

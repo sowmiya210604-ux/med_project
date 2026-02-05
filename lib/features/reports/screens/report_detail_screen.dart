@@ -41,17 +41,32 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     });
 
     try {
+      print('🔍 Loading test history for: ${widget.report.testName}');
+      
       // Fetch test history from backend API
       final historyData = await TestHistoryService.getTestHistory(
         testName: widget.report.testName,
       );
 
+      print('📊 Received ${historyData.length} test history results');
+
+      if (historyData.isEmpty) {
+        print('⚠️ No test history data received');
+        setState(() {
+          _testHistory = [];
+          _isLoadingHistory = false;
+        });
+        return;
+      }
+
+      print('✅ Test history data: ${historyData.take(2).toList()}');
+
       // Convert to TestResult objects
       final testResults = historyData.map((data) {
         return TestResult(
-          id: data['id'] ?? '',
-          reportId: widget.report.id,
-          testName: widget.report.testName,
+          id: data['id']?.toString() ?? '',
+          reportId: data['reportId']?.toString() ?? widget.report.id,
+          testName: data['testName'] ?? widget.report.testName,
           parameterName: data['parameterName'] ?? '',
           value: (data['value'] as num?)?.toDouble() ?? 0.0,
           unit: data['unit'] ?? '',
@@ -62,13 +77,16 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         );
       }).toList();
 
+      print('✅ Converted to ${testResults.length} TestResult objects');
+
       setState(() {
         _testHistory = testResults;
         _isLoadingHistory = false;
       });
     } catch (e) {
+      print('❌ Error loading test history: $e');
       setState(() {
-        _historyError = 'Failed to load test history: $e';
+        _historyError = 'Failed to load test history. Please try again.';
         _isLoadingHistory = false;
       });
     }
@@ -471,24 +489,8 @@ Test Results:
               ),
               TextButton.icon(
                 onPressed: () {
-                  // Navigate with first parameter's results
-                  Map<String, List<TestResult>> groupedResults = {};
-                  for (var result in _testHistory) {
-                    if (!groupedResults.containsKey(result.parameterName)) {
-                      groupedResults[result.parameterName] = [];
-                    }
-                    groupedResults[result.parameterName]!.add(result);
-                  }
-                  final firstParameter = groupedResults.keys.first;
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => TestHistoryScreen(
-                        parameterName: firstParameter,
-                        results: groupedResults[firstParameter]!,
-                      ),
-                    ),
-                  );
+                  final firstParameter = _testHistory.first.parameterName;
+                  _navigateToFullHistory(firstParameter);
                 },
                 icon: const Icon(Icons.history, size: 18),
                 label: const Text('View History'),
@@ -507,24 +509,8 @@ Test Results:
             height: 200,
             child: GestureDetector(
               onTap: () {
-                // Navigate with first parameter's results
-                Map<String, List<TestResult>> groupedResults = {};
-                for (var result in _testHistory) {
-                  if (!groupedResults.containsKey(result.parameterName)) {
-                    groupedResults[result.parameterName] = [];
-                  }
-                  groupedResults[result.parameterName]!.add(result);
-                }
-                final firstParameter = groupedResults.keys.first;
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => TestHistoryScreen(
-                      parameterName: firstParameter,
-                      results: groupedResults[firstParameter]!,
-                    ),
-                  ),
-                );
+                final firstParameter = _testHistory.first.parameterName;
+                _navigateToFullHistory(firstParameter);
               },
               child: LineChart(
                 LineChartData(
@@ -849,24 +835,8 @@ Test Results:
             Center(
               child: TextButton.icon(
                 onPressed: () {
-                  // Navigate with first parameter's results
-                  Map<String, List<TestResult>> groupedResults = {};
-                  for (var result in _testHistory) {
-                    if (!groupedResults.containsKey(result.parameterName)) {
-                      groupedResults[result.parameterName] = [];
-                    }
-                    groupedResults[result.parameterName]!.add(result);
-                  }
-                  final firstParameter = groupedResults.keys.first;
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => TestHistoryScreen(
-                        parameterName: firstParameter,
-                        results: groupedResults[firstParameter]!,
-                      ),
-                    ),
-                  );
+                  final firstParameter = _testHistory.first.parameterName;
+                  _navigateToFullHistory(firstParameter);
                 },
                 icon: const Icon(Icons.arrow_forward, size: 18),
                 label: const Text('View Full History'),
@@ -914,4 +884,21 @@ Test Results:
       ],
     );
   }
+
+  void _navigateToFullHistory(String parameterName) {
+    final paramResults = _testHistory
+        .where((r) => r.parameterName == parameterName)
+        .toList();
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TestHistoryScreen(
+          parameterName: parameterName,
+          results: paramResults,
+        ),
+      ),
+    );
+  }
 }
+

@@ -64,7 +64,13 @@ class HttpService {
         ApiConfig.log('ERROR: Client error - $e');
         throw ApiException(0, 'Failed to connect to server at $url');
       }
+      // If it's already an ApiException, rethrow it
+      if (e is ApiException) {
+        print('🌐 POST: Rethrowing ApiException: ${e.message}');
+        rethrow;
+      }
       ApiConfig.log('ERROR: $e');
+      print('🌐 POST: Throwing generic error: $e');
       throw ApiException(0, e.toString());
     }
   }
@@ -130,6 +136,8 @@ class HttpService {
 
   static Map<String, dynamic> _handle(http.Response response) {
     ApiConfig.log('Response: ${response.statusCode}');
+    print('🌐 HTTP Response Status: ${response.statusCode}');
+    print('🌐 HTTP Response Body: ${response.body}');
 
     if (response.body.isEmpty) {
       throw ApiException(response.statusCode, 'Empty response from server');
@@ -147,17 +155,21 @@ class HttpService {
       if (response.statusCode == 401 || response.statusCode == 403) {
         // Clear storage and force re-login
         StorageHelper.clearAll();
+        final errorMsg = data['error'] ?? 'Unauthorized. Please login again.';
+        print('🌐 Throwing 401/403 error: $errorMsg');
         throw ApiException(
           response.statusCode,
-          data['error'] ?? 'Unauthorized. Please login again.',
+          errorMsg,
         );
       }
 
+      final errorMsg = data['error'] ??
+          data['message'] ??
+          'Request failed with status ${response.statusCode}';
+      print('🌐 Throwing error: $errorMsg');
       throw ApiException(
         response.statusCode,
-        data['error'] ??
-            data['message'] ??
-            'Request failed with status ${response.statusCode}',
+        errorMsg,
       );
     } catch (e) {
       if (e is ApiException) rethrow;
