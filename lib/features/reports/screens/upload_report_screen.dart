@@ -10,7 +10,7 @@ import '../models/test_type_model.dart';
 import '../providers/report_provider.dart';
 
 class UploadReportScreen extends StatefulWidget {
-  const UploadReportScreen({Key? key}) : super(key: key);
+  const UploadReportScreen({super.key});
 
   @override
   State<UploadReportScreen> createState() => _UploadReportScreenState();
@@ -882,7 +882,7 @@ class _UploadReportScreenState extends State<UploadReportScreen> {
         ),
         const SizedBox(height: 12),
         DropdownButtonFormField<TestType>(
-          value: _selectedTestType,
+          initialValue: _selectedTestType,
           decoration: const InputDecoration(
             hintText: 'Choose test type',
             prefixIcon: Icon(Icons.medical_services),

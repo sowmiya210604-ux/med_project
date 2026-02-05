@@ -10,11 +10,11 @@ class OTPVerificationScreen extends StatefulWidget {
   final bool isPasswordReset;
 
   const OTPVerificationScreen({
-    Key? key,
+    super.key,
     required this.email,
     required this.phone,
     this.isPasswordReset = false,
-  }) : super(key: key);
+  });
 
   @override
   State<OTPVerificationScreen> createState() => _OTPVerificationScreenState();
@@ -101,7 +101,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
       );
 
       // Navigate after short delay
-      await Future.delayed(Duration(milliseconds: 800));
+      await Future.delayed(const Duration(milliseconds: 800));
 
       if (!mounted) return;
 
@@ -169,7 +169,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
               _canResend = true;
             });
             _showMessage(
-              'OTP has expired. Please click \"Resend OTP\" to get a new code.',
+              'OTP has expired. Please click "Resend OTP" to get a new code.',
               isError: true,
             );
           }
@@ -180,7 +180,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
               _canResend = true;
             });
             _showMessage(
-              'Maximum attempts exceeded on server. Please click \"Resend OTP\" to get a new code.',
+              'Maximum attempts exceeded on server. Please click "Resend OTP" to get a new code.',
               isError: true,
             );
           }
@@ -190,7 +190,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
               _canResend = true;
             });
             _showMessage(
-              'No valid OTP found. Please click \"Resend OTP\".',
+              'No valid OTP found. Please click "Resend OTP".',
               isError: true,
             );
           }
@@ -382,10 +382,10 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: AppColors.error),
                   ),
-                  child: Row(
+                  child: const Row(
                     children: [
-                      const Icon(Icons.lock_outline, color: AppColors.error),
-                      const SizedBox(width: 12),
+                      Icon(Icons.lock_outline, color: AppColors.error),
+                      SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           'OTP verification locked. Click "Resend OTP" to get a new code.',

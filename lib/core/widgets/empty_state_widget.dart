@@ -11,14 +11,14 @@ class EmptyStateWidget extends StatefulWidget {
   final Color? iconColor;
 
   const EmptyStateWidget({
-    Key? key,
+    super.key,
     required this.icon,
     required this.title,
     required this.message,
     this.actionText,
     this.onAction,
     this.iconColor,
-  }) : super(key: key);
+  });
 
   @override
   State<EmptyStateWidget> createState() => _EmptyStateWidgetState();
@@ -161,9 +161,9 @@ class LoadingStateWidget extends StatelessWidget {
   final String? message;
 
   const LoadingStateWidget({
-    Key? key,
+    super.key,
     this.message,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -192,11 +192,11 @@ class ErrorStateWidget extends StatelessWidget {
   final VoidCallback? onRetry;
 
   const ErrorStateWidget({
-    Key? key,
+    super.key,
     this.title = 'Oops! Something went wrong',
     required this.message,
     this.onRetry,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

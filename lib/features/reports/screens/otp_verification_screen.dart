@@ -3,14 +3,14 @@ import '../../../core/services/auth_service.dart';
 
 class OTPVerificationScreen extends StatelessWidget {
   final String email;
-  OTPVerificationScreen(this.email);
+  OTPVerificationScreen(this.email, {super.key});
 
   final _otp = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Verify OTP')),
+      appBar: AppBar(title: const Text('Verify OTP')),
       body: Column(
         children: [
           Text('OTP sent to $email'),
@@ -20,7 +20,7 @@ class OTPVerificationScreen extends StatelessWidget {
               await AuthService.verifyOtp(email, _otp.text);
               Navigator.pushReplacementNamed(context, '/login');
             },
-            child: Text('Verify'),
+            child: const Text('Verify'),
           ),
         ],
       ),

@@ -6,7 +6,7 @@ import '../../../core/widgets/app_logo.dart';
 import '../providers/auth_provider.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({Key? key}) : super(key: key);
+  const LoginScreen({super.key});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -325,15 +325,15 @@ class _LoginScreenState extends State<LoginScreen> {
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: AppColors.primary),
                   ),
-                  child: Column(
+                  child: const Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
                           Icon(Icons.info_outline, 
                                color: AppColors.primary, size: 20),
-                          const SizedBox(width: 8),
-                          const Text(
+                          SizedBox(width: 8),
+                          Text(
                             'Test Credentials',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
@@ -342,10 +342,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: 8),
                       Row(
                         children: [
-                          const Text('Phone: ', 
+                          Text('Phone: ', 
                                style: TextStyle(fontWeight: FontWeight.w500)),
                           Text('1234567890',
                                style: TextStyle(
@@ -356,7 +356,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       Row(
                         children: [
-                          const Text('Password: ', 
+                          Text('Password: ', 
                                style: TextStyle(fontWeight: FontWeight.w500)),
                           Text('password123',
                                style: TextStyle(
@@ -457,11 +457,11 @@ class _LoginScreenState extends State<LoginScreen> {
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(color: AppColors.error),
                             ),
-                            child: Row(
+                            child: const Row(
                               children: [
-                                const Icon(Icons.lock_outline,
+                                Icon(Icons.lock_outline,
                                     color: AppColors.error),
-                                const SizedBox(width: 12),
+                                SizedBox(width: 12),
                                 Expanded(
                                   child: Text(
                                     'Account locked. Please reset your password.',

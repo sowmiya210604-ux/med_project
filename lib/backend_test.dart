@@ -7,19 +7,19 @@ void main() {
 }
 
 class BackendTestApp extends StatelessWidget {
-  const BackendTestApp({Key? key}) : super(key: key);
+  const BackendTestApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return const MaterialApp(
       title: 'Backend Test',
-      home: const BackendTestScreen(),
+      home: BackendTestScreen(),
     );
   }
 }
 
 class BackendTestScreen extends StatefulWidget {
-  const BackendTestScreen({Key? key}) : super(key: key);
+  const BackendTestScreen({super.key});
 
   @override
   State<BackendTestScreen> createState() => _BackendTestScreenState();

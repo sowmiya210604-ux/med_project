@@ -5,10 +5,12 @@ class LoginScreen extends StatelessWidget {
   final _email = TextEditingController();
   final _password = TextEditingController();
 
+  LoginScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Login')),
+      appBar: AppBar(title: const Text('Login')),
       body: Column(
         children: [
           TextField(controller: _email),
@@ -18,7 +20,7 @@ class LoginScreen extends StatelessWidget {
               await AuthService.login(_email.text, _password.text);
               Navigator.pushReplacementNamed(context, '/home');
             },
-            child: Text('Login'),
+            child: const Text('Login'),
           ),
         ],
       ),

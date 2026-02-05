@@ -4,7 +4,7 @@ import '../../../core/theme/app_colors.dart';
 import '../providers/auth_provider.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
-  const ResetPasswordScreen({Key? key}) : super(key: key);
+  const ResetPasswordScreen({super.key});
 
   @override
   State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
@@ -30,7 +30,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       
       // Show loading message
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Row(
             children: [
               SizedBox(
@@ -73,15 +73,15 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
           SnackBar(
             content: Row(
               children: [
-                Icon(Icons.error_outline, color: Colors.white),
-                SizedBox(width: 12),
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(authProvider.errorMessage ?? 'Failed to reset password. Please try again.'),
                 ),
               ],
             ),
             backgroundColor: AppColors.error,
-            duration: Duration(seconds: 5),
+            duration: const Duration(seconds: 5),
           ),
         );
       }

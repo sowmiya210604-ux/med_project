@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../auth/providers/auth_provider.dart';
-import '../../auth/models/user_model.dart';
 
 class EditProfileScreen extends StatefulWidget {
-  const EditProfileScreen({Key? key}) : super(key: key);
+  const EditProfileScreen({super.key});
 
   @override
   State<EditProfileScreen> createState() => _EditProfileScreenState();
@@ -228,7 +227,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
               // Gender
               DropdownButtonFormField<String>(
-                value: _selectedGender,
+                initialValue: _selectedGender,
                 decoration: const InputDecoration(
                   labelText: 'Gender',
                   prefixIcon: Icon(Icons.wc),
@@ -249,7 +248,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
               // Blood Group
               DropdownButtonFormField<String>(
-                value: _selectedBloodGroup,
+                initialValue: _selectedBloodGroup,
                 decoration: const InputDecoration(
                   labelText: 'Blood Group',
                   prefixIcon: Icon(Icons.bloodtype),

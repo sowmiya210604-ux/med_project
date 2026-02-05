@@ -14,7 +14,7 @@ class AnimatedButton extends StatefulWidget {
   final double height;
 
   const AnimatedButton({
-    Key? key,
+    super.key,
     required this.text,
     required this.onPressed,
     this.icon,
@@ -24,7 +24,7 @@ class AnimatedButton extends StatefulWidget {
     this.textColor,
     this.width,
     this.height = 50,
-  }) : super(key: key);
+  });
 
   @override
   State<AnimatedButton> createState() => _AnimatedButtonState();

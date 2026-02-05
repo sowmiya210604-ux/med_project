@@ -5,7 +5,6 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:io' if (dart.library.html) '../../../core/utils/file_stub.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:flutter/services.dart';
 import '../../../core/theme/app_colors.dart';
 import '../models/report_model.dart';
 import '../providers/report_provider.dart';
@@ -16,9 +15,9 @@ class ReportDetailScreen extends StatefulWidget {
   final MedicalReport report;
 
   const ReportDetailScreen({
-    Key? key,
+    super.key,
     required this.report,
-  }) : super(key: key);
+  });
 
   @override
   State<ReportDetailScreen> createState() => _ReportDetailScreenState();

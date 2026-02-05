@@ -6,10 +6,10 @@ class AppLogo extends StatelessWidget {
   final bool showText;
 
   const AppLogo({
-    Key? key,
+    super.key,
     this.size = 120,
     this.showText = true,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +41,7 @@ class AppLogo extends StatelessWidget {
               ),
               Positioned(
                 bottom: size * 0.25,
-                child: Container(
+                child: SizedBox(
                   width: size * 0.6,
                   height: 2,
                   child: CustomPaint(

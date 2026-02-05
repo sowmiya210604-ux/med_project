@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:fl_chart/fl_chart.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../reports/providers/report_provider.dart';
 import '../../reports/models/report_model.dart';
@@ -8,7 +7,7 @@ import '../widgets/test_result_chart.dart';
 import 'test_history_screen.dart';
 
 class InsightsScreen extends StatefulWidget {
-  const InsightsScreen({Key? key}) : super(key: key);
+  const InsightsScreen({super.key});
 
   @override
   State<InsightsScreen> createState() => _InsightsScreenState();

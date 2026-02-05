@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 
 class PrivacySecurityScreen extends StatefulWidget {
-  const PrivacySecurityScreen({Key? key}) : super(key: key);
+  const PrivacySecurityScreen({super.key});
 
   @override
   State<PrivacySecurityScreen> createState() => _PrivacySecurityScreenState();
@@ -185,7 +185,7 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
       ),
       subtitle: Text(
         subtitle,
-        style: TextStyle(
+        style: const TextStyle(
           fontSize: 13,
           color: AppColors.textSecondary,
         ),
@@ -193,7 +193,7 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
       trailing: Switch(
         value: value,
         onChanged: onChanged,
-        activeColor: AppColors.primary,
+        activeThumbColor: AppColors.primary,
       ),
     );
   }
@@ -224,12 +224,12 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
       ),
       subtitle: Text(
         subtitle,
-        style: TextStyle(
+        style: const TextStyle(
           fontSize: 13,
           color: AppColors.textSecondary,
         ),
       ),
-      trailing: Icon(
+      trailing: const Icon(
         Icons.arrow_forward_ios,
         size: 16,
         color: AppColors.textSecondary,

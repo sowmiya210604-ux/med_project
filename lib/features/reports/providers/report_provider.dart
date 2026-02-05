@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import '../models/report_model.dart';
-import '../models/test_type_model.dart';
 import '../../../core/services/health_analysis_service.dart';
 import '../../../core/services/http_service.dart';
 import '../../../core/config/api_config.dart';

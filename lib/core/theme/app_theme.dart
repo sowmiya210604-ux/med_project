@@ -6,16 +6,14 @@ class AppTheme {
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
-      colorScheme: ColorScheme.light(
+      colorScheme: const ColorScheme.light(
         primary: AppColors.primary,
         secondary: AppColors.secondary,
         tertiary: AppColors.tertiary,
-        background: const Color.fromARGB(255, 235, 130, 247),
         surface: AppColors.cardBackground,
         error: AppColors.error,
         onPrimary: Colors.white,
         onSecondary: Colors.white,
-        onBackground: AppColors.textPrimary,
         onSurface: AppColors.textPrimary,
       ),
       scaffoldBackgroundColor: AppColors.background,

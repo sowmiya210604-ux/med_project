@@ -3,6 +3,8 @@ import '../core/config/api_config.dart';
 import '../core/services/http_service.dart';
 
 class ConnectionTestWidget extends StatelessWidget {
+  const ConnectionTestWidget({super.key});
+
   @override
   Widget build(BuildContext context) {
     return ElevatedButton(
@@ -12,7 +14,7 @@ class ConnectionTestWidget extends StatelessWidget {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(res.toString())));
       },
-      child: Text('Test Backend'),
+      child: const Text('Test Backend'),
     );
   }
 }

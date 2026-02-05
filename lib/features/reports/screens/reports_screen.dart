@@ -11,7 +11,7 @@ import 'upload_report_screen.dart';
 import 'report_detail_screen.dart';
 
 class ReportsScreen extends StatefulWidget {
-  const ReportsScreen({Key? key}) : super(key: key);
+  const ReportsScreen({super.key});
 
   @override
   State<ReportsScreen> createState() => _ReportsScreenState();

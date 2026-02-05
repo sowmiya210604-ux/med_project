@@ -4,13 +4,11 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/empty_state_widget.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../reports/providers/report_provider.dart';
-import '../../reports/models/test_type_model.dart';
 import '../../reports/screens/test_detail_screen.dart';
 import '../../reports/screens/upload_report_screen.dart';
 import '../../notifications/screens/notifications_screen.dart';
 import '../widgets/health_summary_card.dart';
 import '../widgets/recent_report_card.dart';
-import '../widgets/test_search_button.dart';
 import 'search_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -18,10 +16,10 @@ class HomeScreen extends StatefulWidget {
   final VoidCallback? onNavigateToProfile;
 
   const HomeScreen({
-    Key? key,
+    super.key,
     this.onNavigateToReports,
     this.onNavigateToProfile,
-  }) : super(key: key);
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();

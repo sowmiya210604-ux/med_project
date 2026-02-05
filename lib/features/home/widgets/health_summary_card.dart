@@ -5,8 +5,7 @@ import '../../../core/services/health_summary_service.dart';
 class HealthSummaryCard extends StatefulWidget {
   final List<String> healthConditions;
 
-  const HealthSummaryCard({Key? key, this.healthConditions = const []})
-      : super(key: key);
+  const HealthSummaryCard({super.key, this.healthConditions = const []});
 
   @override
   State<HealthSummaryCard> createState() => _HealthSummaryCardState();

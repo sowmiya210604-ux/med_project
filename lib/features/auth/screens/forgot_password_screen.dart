@@ -4,7 +4,7 @@ import '../../../core/theme/app_colors.dart';
 import '../providers/auth_provider.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
-  const ForgotPasswordScreen({Key? key}) : super(key: key);
+  const ForgotPasswordScreen({super.key});
 
   @override
   State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
@@ -26,7 +26,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       
       // Show loading snackbar
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Row(
             children: [
               SizedBox(
@@ -54,7 +54,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       if (success && mounted) {
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Row(
               children: [
                 Icon(Icons.check_circle, color: Colors.white),
@@ -70,7 +70,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         );
         
         // Navigate after short delay
-        await Future.delayed(Duration(milliseconds: 500));
+        await Future.delayed(const Duration(milliseconds: 500));
         
         if (mounted) {
           Navigator.of(context).pushReplacementNamed(
@@ -86,15 +86,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           SnackBar(
             content: Row(
               children: [
-                Icon(Icons.error_outline, color: Colors.white),
-                SizedBox(width: 12),
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(authProvider.errorMessage ?? 'Failed to send OTP. Please try again.'),
                 ),
               ],
             ),
             backgroundColor: AppColors.error,
-            duration: Duration(seconds: 5),
+            duration: const Duration(seconds: 5),
           ),
         );
       }

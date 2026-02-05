@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 
 class HelpSupportScreen extends StatelessWidget {
-  const HelpSupportScreen({Key? key}) : super(key: key);
+  const HelpSupportScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -213,7 +213,7 @@ class HelpSupportScreen extends StatelessWidget {
       ),
       subtitle: Text(
         subtitle,
-        style: TextStyle(
+        style: const TextStyle(
           fontSize: 13,
           color: AppColors.textSecondary,
         ),
@@ -242,7 +242,7 @@ class HelpSupportScreen extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           child: Text(
             answer,
-            style: TextStyle(
+            style: const TextStyle(
               color: AppColors.textSecondary,
               fontSize: 13,
             ),
@@ -277,7 +277,7 @@ class HelpSupportScreen extends StatelessWidget {
       ),
       subtitle: Text(
         subtitle,
-        style: TextStyle(
+        style: const TextStyle(
           fontSize: 13,
           color: AppColors.textSecondary,
         ),
@@ -316,7 +316,7 @@ class HelpSupportScreen extends StatelessWidget {
       ),
       subtitle: Text(
         subtitle,
-        style: TextStyle(
+        style: const TextStyle(
           fontSize: 13,
           color: AppColors.textSecondary,
         ),

@@ -29,13 +29,13 @@ class AppColors {
   static const Color lowStatus = Color(0xFFF59E0B);
 
   // Gradient colors
-  static final LinearGradient primaryGradient = LinearGradient(
+  static const LinearGradient primaryGradient = LinearGradient(
     colors: [primary, secondary],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
-  static final LinearGradient accentGradient = LinearGradient(
+  static const LinearGradient accentGradient = LinearGradient(
     colors: [tertiary, accent],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
