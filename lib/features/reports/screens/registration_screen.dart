@@ -6,16 +6,18 @@ class RegistrationScreen extends StatelessWidget {
   final _email = TextEditingController();
   final _password = TextEditingController();
 
+  RegistrationScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Register')),
+      appBar: AppBar(title: const Text('Register')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            TextField(controller: _name, decoration: InputDecoration(labelText: 'Name')),
-            TextField(controller: _email, decoration: InputDecoration(labelText: 'Email')),
+            TextField(controller: _name, decoration: const InputDecoration(labelText: 'Name')),
+            TextField(controller: _email, decoration: const InputDecoration(labelText: 'Email')),
             TextField(controller: _password, obscureText: true),
             ElevatedButton(
               onPressed: () async {
@@ -27,7 +29,7 @@ class RegistrationScreen extends StatelessWidget {
                 Navigator.pushNamed(context, '/verify-otp',
                     arguments: _email.text);
               },
-              child: Text('Register'),
+              child: const Text('Register'),
             ),
           ],
         ),

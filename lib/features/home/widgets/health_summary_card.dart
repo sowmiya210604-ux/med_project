@@ -5,8 +5,7 @@ import '../../../core/services/health_summary_service.dart';
 class HealthSummaryCard extends StatefulWidget {
   final List<String> healthConditions;
 
-  const HealthSummaryCard({Key? key, this.healthConditions = const []})
-      : super(key: key);
+  const HealthSummaryCard({super.key, this.healthConditions = const []});
 
   @override
   State<HealthSummaryCard> createState() => _HealthSummaryCardState();
@@ -24,6 +23,8 @@ class _HealthSummaryCardState extends State<HealthSummaryCard> {
   }
 
   Future<void> _loadHealthSummary() async {
+    if (!mounted) return;
+    
     setState(() {
       _isLoading = true;
       _error = null;
@@ -31,11 +32,13 @@ class _HealthSummaryCardState extends State<HealthSummaryCard> {
 
     try {
       final summary = await HealthSummaryService.getLatestSummary();
+      if (!mounted) return;
       setState(() {
         _latestSummary = summary;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString();
         _isLoading = false;
@@ -72,7 +75,7 @@ class _HealthSummaryCardState extends State<HealthSummaryCard> {
                       fontWeight: FontWeight.w600,
                     ),
               ),
-              if (!_isLoading)
+              if (!_isLoading && _latestSummary != null)
                 IconButton(
                   icon: const Icon(Icons.refresh, size: 20),
                   onPressed: _loadHealthSummary,
@@ -97,12 +100,7 @@ class _HealthSummaryCardState extends State<HealthSummaryCard> {
                   ),
             )
           else if (_latestSummary == null)
-            Text(
-              'No health summary available yet. Upload your medical reports to get personalized health insights.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-            )
+            _buildEmptyState(context)
           else ...[
             // Overall Status Badge
             Container(
@@ -182,6 +180,16 @@ class _HealthSummaryCardState extends State<HealthSummaryCard> {
           ],
         ],
       ),
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context) {
+    return Text(
+      'Start tracking your health journey by uploading your first report.',
+      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppColors.textSecondary,
+            height: 1.5,
+          ),
     );
   }
 

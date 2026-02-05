@@ -16,13 +16,13 @@ import 'test_connection.dart';
 
 void main() async {
   // Load environment variables
-  await dotenv.load(fileName: ".env");
+  await dotenv.load(fileName: '.env');
 
   runApp(const MedTrackApp());
 }
 
 class MedTrackApp extends StatelessWidget {
-  const MedTrackApp({Key? key}) : super(key: key);
+  const MedTrackApp({super.key});
 
   @override
   Widget build(BuildContext context) {

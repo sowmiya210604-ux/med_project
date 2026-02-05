@@ -8,10 +8,10 @@ class TestHistoryScreen extends StatefulWidget {
   final List<TestResult> results;
 
   const TestHistoryScreen({
-    Key? key,
+    super.key,
     required this.parameterName,
     required this.results,
-  }) : super(key: key);
+  });
 
   @override
   State<TestHistoryScreen> createState() => _TestHistoryScreenState();
@@ -106,7 +106,7 @@ class _TestHistoryScreenState extends State<TestHistoryScreen> {
           // Year Filter
           Expanded(
             child: DropdownButtonFormField<String>(
-              value: _selectedYear,
+              initialValue: _selectedYear,
               decoration: const InputDecoration(
                 labelText: 'Year',
                 prefixIcon: Icon(Icons.calendar_today),
@@ -132,7 +132,7 @@ class _TestHistoryScreenState extends State<TestHistoryScreen> {
           // Month Filter
           Expanded(
             child: DropdownButtonFormField<String>(
-              value: _selectedMonth,
+              initialValue: _selectedMonth,
               decoration: const InputDecoration(
                 labelText: 'Month',
                 prefixIcon: Icon(Icons.event),

@@ -7,11 +7,11 @@ class SuccessScreen extends StatelessWidget {
   final String nextRoute;
 
   const SuccessScreen({
-    Key? key,
+    super.key,
     required this.title,
     required this.message,
     required this.nextRoute,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +26,7 @@ class SuccessScreen extends StatelessWidget {
               // Success Animation/Icon
               Container(
                 padding: const EdgeInsets.all(30),
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   gradient: AppColors.primaryGradient,
                   shape: BoxShape.circle,
                 ),

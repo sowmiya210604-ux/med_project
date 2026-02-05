@@ -10,10 +10,10 @@ class RecentReportCard extends StatelessWidget {
   final int index;
 
   const RecentReportCard({
-    Key? key,
+    super.key,
     required this.report,
     this.index = 0,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

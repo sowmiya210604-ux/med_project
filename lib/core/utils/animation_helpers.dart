@@ -8,12 +8,12 @@ class StaggeredAnimationHelper extends StatelessWidget {
   final Widget Function(BuildContext context, int index) itemBuilder;
 
   const StaggeredAnimationHelper({
-    Key? key,
+    super.key,
     required this.itemCount,
     this.startDelay = 0,
     this.delayIncrement = 100,
     required this.itemBuilder,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -49,11 +49,11 @@ class FadeInWidget extends StatefulWidget {
   final Duration delay;
 
   const FadeInWidget({
-    Key? key,
+    super.key,
     required this.child,
     this.duration = const Duration(milliseconds: 500),
     this.delay = Duration.zero,
-  }) : super(key: key);
+  });
 
   @override
   State<FadeInWidget> createState() => _FadeInWidgetState();
@@ -107,12 +107,12 @@ class SlideInWidget extends StatefulWidget {
   final Offset begin;
 
   const SlideInWidget({
-    Key? key,
+    super.key,
     required this.child,
     this.duration = const Duration(milliseconds: 500),
     this.delay = Duration.zero,
     this.begin = const Offset(0, 0.2),
-  }) : super(key: key);
+  });
 
   @override
   State<SlideInWidget> createState() => _SlideInWidgetState();

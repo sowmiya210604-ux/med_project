@@ -7,10 +7,10 @@ class TestSearchButton extends StatelessWidget {
   final VoidCallback onTap;
 
   const TestSearchButton({
-    Key? key,
+    super.key,
     required this.testType,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

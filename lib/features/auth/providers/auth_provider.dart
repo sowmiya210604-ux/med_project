@@ -117,14 +117,14 @@ class AuthProvider extends ChangeNotifier {
 
       return true;
     } catch (e) {
+      print('🔴 Login error caught: $e');
       final errorMsg = e.toString().replaceAll('Exception: ', '');
+      print('🔴 Cleaned error message: $errorMsg');
       _errorMessage = errorMsg;
       _isAuthenticated = false;
 
-      // Track failed attempts for incorrect password errors
-      if (errorMsg.toLowerCase().contains('invalid credentials') ||
-          errorMsg.toLowerCase().contains('incorrect') ||
-          errorMsg.toLowerCase().contains('password')) {
+      // Only track failed attempts for incorrect password errors (not for unregistered users)
+      if (errorMsg.toLowerCase().contains('incorrect password')) {
         _loginAttempts[phone] = (_loginAttempts[phone] ?? 0) + 1;
 
         if (_loginAttempts[phone]! >= _maxAttempts) {
@@ -135,9 +135,10 @@ class AuthProvider extends ChangeNotifier {
               'Account locked due to too many failed attempts. Please reset your password.';
         } else {
           final remaining = _maxAttempts - _loginAttempts[phone]!;
-          _errorMessage = '$errorMsg. $remaining attempts remaining.';
+          _errorMessage = '$errorMsg ($remaining attempts remaining)';
         }
       }
+      // For unregistered users or other errors, just pass the error message as is
 
       return false;
     } finally {

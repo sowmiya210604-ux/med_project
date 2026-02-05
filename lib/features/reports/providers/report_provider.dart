@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import '../models/report_model.dart';
-import '../models/test_type_model.dart';
 import '../../../core/services/health_analysis_service.dart';
 import '../../../core/services/http_service.dart';
 import '../../../core/config/api_config.dart';
@@ -64,7 +63,7 @@ class ReportProvider extends ChangeNotifier {
       _errorMessage = 'Failed to fetch reports: $e';
       _isLoading = false;
       notifyListeners();
-      rethrow; // Re-throw to allow UI to handle
+      // Don't rethrow - error is stored in _errorMessage for UI to handle
     }
   }
 
@@ -100,6 +99,11 @@ class ReportProvider extends ChangeNotifier {
       }
       allTestResults.addAll(analyzedTestResults);
 
+      print('🚀 Uploading report with ${allTestResults.length} test results');
+      if (allTestResults.isEmpty) {
+        print('⚠️ WARNING: No test results extracted! OCR may have failed.');
+      }
+
       // Call backend API to upload report
       final response = await HttpService.post(
         ApiConfig.reportUrl,
@@ -112,6 +116,8 @@ class ReportProvider extends ChangeNotifier {
         requiresAuth: true,
       );
 
+      print('✅ Backend response received');
+
       // Get the created report from response
       if (response['report'] != null) {
         final reportData = response['report'];
@@ -121,9 +127,12 @@ class ReportProvider extends ChangeNotifier {
         // Add test results from backend response
         if (reportData['testResults'] != null) {
           final testResultsList = reportData['testResults'] as List;
+          print('📊 Backend saved ${testResultsList.length} test results');
           for (var testResult in testResultsList) {
             _testResults.add(TestResult.fromJson(testResult));
           }
+        } else {
+          print('⚠️ No test results in backend response');
         }
       }
 
@@ -146,32 +155,212 @@ class ReportProvider extends ChangeNotifier {
     final List<Map<String, dynamic>> results = [];
     final lines = text.split('\n');
 
-    // Common test parameter patterns
+    print('📝 OCR Text to analyze (${lines.length} lines):');
+    print('${text.substring(0, text.length > 200 ? 200 : text.length)}...');
+
+    // Comprehensive test parameter patterns for various lab report formats
     final patterns = [
-      RegExp(r'(Hemoglobin|Hb|HGB)\s*:?\s*([\d.]+)\s*(g/dL|mg/dL)?',
+      // Thyroid Tests - handles various formats like "T3, Total", "TSH - Ultra Sensitive", etc.
+      RegExp(
+          r'(?:TSH|Thyroid\s+Stimulating\s+Hormone)(?:\s*-\s*Ultra\s+Sensitive)?(?:\s*\(TSH\))?\s*[:\s]*([\d.]+)\s*(mIU/L|µIU/mL|uIU/mL|uIU/ml)?',
           caseSensitive: false),
-      RegExp(r'(Glucose|Blood Sugar|Sugar)\s*:?\s*([\d.]+)\s*(mg/dL)?',
+      RegExp(
+          r'(?:T3|TT3|Triiodothyronine)(?:,?\s*Total)?(?:\s*\(TT3\))?\s*[:\s]*([\d.]+)\s*(ng/dL|ng/mL|nmol/L|ng/dl|ng/ml)?',
           caseSensitive: false),
-      RegExp(r'(Cholesterol|CHOL)\s*:?\s*([\d.]+)\s*(mg/dL)?',
+      RegExp(
+          r'(?:T4|TT4|Thyroxine)(?:,?\s*Total)?(?:\s*\(TT4\))?\s*[:\s]*([\d.]+)\s*(µg/dL|µg/L|ug/dL|ug/L|pmol/L)?',
           caseSensitive: false),
-      RegExp(r'(RBC|Red Blood Cell)\s*:?\s*([\d.]+)\s*(million/µL)?',
+
+      // Blood Sugar Tests - includes ABG, HbA1c with method notation
+      RegExp(
+          r'(?:GLUCOSE\s+FASTING|Fasting\s+Glucose|Glucose\s+Fasting|Blood\s+Sugar\s+Fasting|FBS|BSF)(?:\s*\(BSF\))?\s*[:\s]*([\d.]+)\s*(mg/dL|mg/dl)?',
           caseSensitive: false),
-      RegExp(r'(WBC|White Blood Cell)\s*:?\s*([\d.]+)\s*(cells/µL)?',
+      RegExp(
+          r'(?:AVERAGE\s+BLOOD\s+GLUCOSE|ABG)(?:\s*\(ABG\))?(?:\s+CALCULATED)?\s*[:\s]*([\d.]+)\s*(mg/dL|mg/dl)?',
           caseSensitive: false),
-      RegExp(r'(Platelets|PLT)\s*:?\s*([\d.]+)\s*(thousands/µL)?',
+      RegExp(
+          r'(?:HbA1c|A1C|H\.P\.L\.C|Glycated\s+Hemoglobin)(?:\s*-?\s*\(HPLC\s*-?\s*NGSP\s+Certified\))?\s*[:\s]*([\d.]+)\s*(%)?',
           caseSensitive: false),
-      RegExp(r'(Creatinine|CREAT)\s*:?\s*([\d.]+)\s*(mg/dL)?',
+
+      // Blood Count
+      RegExp(
+          r'(?:Hemoglobin|Haemoglobin|Hb|HGB)\s*[:\s]*([\d.]+)\s*(g/dL|g/dl|mg/dL)?',
           caseSensitive: false),
-      RegExp(r'(Urea|BUN)\s*:?\s*([\d.]+)\s*(mg/dL)?', caseSensitive: false),
+      RegExp(
+          r'(?:RBC|Red\s+Blood\s+Cell(?:\s+Count)?)\s*[:\s]*([\d.]+)\s*(million/µL|million/uL|M/µL|M/uL)?',
+          caseSensitive: false),
+      RegExp(
+          r'(?:WBC|White\s+Blood\s+Cell(?:\s+Count)?)\s*[:\s]*([\d.]+)\s*(cells/µL|cells/uL|K/µL|K/uL|thousands/µL)?',
+          caseSensitive: false),
+      RegExp(
+          r'(?:Platelet(?:s)?(?:\s+Count)?|PLT)\s*[:\s]*([\d.]+)\s*(thousands/µL|thousands/uL|K/µL|lakhs/µL|lakh/µL)?',
+          caseSensitive: false),
+
+      // Kidney Function Tests - comprehensive patterns
+      RegExp(
+          r'(?:SERUM\s+CREATININE|Creatinine\s*\(Serum\)|Creatinine|CREAT)(?:\s*\([^)]+\))?\s*[:\s]*([\d.]+)\s*(mg/dL|mg/dl)?',
+          caseSensitive: false),
+      RegExp(
+          r'(?:SERUM\s+UREA|Urea\s*\(Serum\)|Urea)(?:\s*\([^)]+\))?\s*[:\s]*([\d.]+)\s*(mg/dL|mg/dl)?',
+          caseSensitive: false),
+      RegExp(
+          r'(?:BUN|Blood\s+Urea\s+Nitrogen)\s*[:\s]*([\d.]+)\s*(mg/dL|mg/dl)?',
+          caseSensitive: false),
+      RegExp(
+          r'(?:SERUM\s+URIC\s+ACID|Uric\s+Acid|Urate)(?:\s*\([^)]+\))?\s*[:\s]*([\d.]+)\s*(mg/dL|mg/dl)?',
+          caseSensitive: false),
+      RegExp(
+          r'(?:eGFR|EGFR|GFR)(?:\s+CATEGORY)?(?:\s*\([^)]+\))?\s*[:\s]*([L\s]*)?([\d.]+)\s*(ml/min(?:/1\.73m(?:\^)?2)?|mL/min(?:/1\.73m(?:\^)?2)?)?',
+          caseSensitive: false),
+
+      // Electrolytes
+      RegExp(
+          r'(?:SERUM\s+CALCIUM|Calcium)(?:\s*\([^)]+\))?\s*[:\s]*([\d.]+)\s*(mg/dL|mg/dl|mmol/L)?',
+          caseSensitive: false),
+      RegExp(
+          r'(?:SERUM\s+POTASSIUM|Potassium)(?:\s*\([^)]+\))?\s*[:\s]*([\d.]+)\s*(mEq/L|mmol/L)?',
+          caseSensitive: false),
+      RegExp(
+          r'(?:SERUM\s+SODIUM|Sodium)(?:\s*\([^)]+\))?\s*[:\s]*([\d.]+)\s*(mEq/L|mmol/L)?',
+          caseSensitive: false),
+      RegExp(
+          r'(?:Chloride)(?:\s*\([^)]+\))?\s*[:\s]*([\d.]+)\s*(mEq/L|mmol/L)?',
+          caseSensitive: false),
+      RegExp(
+          r'(?:Phosphorus)(?:\s*\([^)]+\))?\s*[:\s]*([\d.]+)\s*(mg/dL|mg/dl)?',
+          caseSensitive: false),
+
+      // Liver & Other Tests
+      RegExp(
+          r'(?:Alkaline\s+Phosphatase|ALP)(?:\s*\([^)]+\))?\s*[:\s]*([\d.]+)\s*(U/L|IU/L)?',
+          caseSensitive: false),
+      RegExp(r'(?:ALT|SGPT)\s*[:\s]*([\d.]+)\s*(U/L|IU/L)?',
+          caseSensitive: false),
+      RegExp(r'(?:AST|SGOT)\s*[:\s]*([\d.]+)\s*(U/L|IU/L)?',
+          caseSensitive: false),
+      RegExp(
+          r'(?:Total\s+Protein)(?:\s*\([^)]+\))?\s*[:\s]*([\d.]+)\s*(g/dL|g/dl)?',
+          caseSensitive: false),
+      RegExp(r'(?:Albumin)(?:\s*\([^)]+\))?\s*[:\s]*([\d.]+)\s*(g/dL|g/dl)?',
+          caseSensitive: false),
+
+      // Lipid Profile
+      RegExp(
+          r'(?:Total\s+Cholesterol|Cholesterol|CHOL)\s*[:\s]*([\d.]+)\s*(mg/dL|mg/dl)?',
+          caseSensitive: false),
+      RegExp(r'(?:HDL(?:\s+Cholesterol)?)\s*[:\s]*([\d.]+)\s*(mg/dL|mg/dl)?',
+          caseSensitive: false),
+      RegExp(r'(?:LDL(?:\s+Cholesterol)?)\s*[:\s]*([\d.]+)\s*(mg/dL|mg/dl)?',
+          caseSensitive: false),
+      RegExp(r'(?:Triglycerides|TG)\s*[:\s]*([\d.]+)\s*(mg/dL|mg/dl)?',
+          caseSensitive: false),
     ];
 
     for (var line in lines) {
       for (var pattern in patterns) {
         final match = pattern.firstMatch(line);
         if (match != null) {
-          final parameterName = match.group(1) ?? '';
-          final value = match.group(2) ?? '';
-          final unit = match.group(3) ?? '';
+          // Extract parameter name from the line (simplify long names)
+          var parameterName = '';
+          final lowerLine = line.toLowerCase();
+
+          if (lowerLine.contains('tsh') ||
+              lowerLine.contains('thyroid stimulating')) {
+            parameterName = 'TSH';
+          } else if (lowerLine.contains('tt3') ||
+              lowerLine.contains('triiodothyronine') ||
+              lowerLine.contains('t3')) {
+            parameterName = 'T3';
+          } else if (lowerLine.contains('tt4') ||
+              lowerLine.contains('thyroxine') ||
+              lowerLine.contains('t4')) {
+            parameterName = 'T4';
+          } else if (lowerLine.contains('average blood glucose') ||
+              lowerLine.contains('abg')) {
+            parameterName = 'Average Blood Glucose';
+          } else if (lowerLine.contains('glucose') ||
+              lowerLine.contains('blood sugar')) {
+            parameterName = 'Glucose';
+          } else if (lowerLine.contains('hba1c') ||
+              lowerLine.contains('a1c') ||
+              lowerLine.contains('h.p.l.c')) {
+            parameterName = 'HbA1c';
+          } else if (lowerLine.contains('hemoglobin') ||
+              lowerLine.contains('haemoglobin')) {
+            parameterName = 'Hemoglobin';
+          } else if (lowerLine.contains('serum creatinine') ||
+              lowerLine.contains('creatinine')) {
+            parameterName = 'Creatinine';
+          } else if (lowerLine.contains('serum urea') ||
+              (lowerLine.contains('urea') && !lowerLine.contains('bun'))) {
+            parameterName = 'Urea';
+          } else if (lowerLine.contains('bun') ||
+              lowerLine.contains('blood urea nitrogen')) {
+            parameterName = 'BUN';
+          } else if (lowerLine.contains('uric acid') ||
+              lowerLine.contains('urate')) {
+            parameterName = 'Uric Acid';
+          } else if (lowerLine.contains('egfr') || lowerLine.contains('gfr')) {
+            parameterName = 'eGFR';
+          } else if (lowerLine.contains('serum calcium') ||
+              (lowerLine.contains('calcium') &&
+                  !lowerLine.contains('phosph'))) {
+            parameterName = 'Calcium';
+          } else if (lowerLine.contains('serum potassium') ||
+              lowerLine.contains('potassium')) {
+            parameterName = 'Potassium';
+          } else if (lowerLine.contains('serum sodium') ||
+              lowerLine.contains('sodium')) {
+            parameterName = 'Sodium';
+          } else if (lowerLine.contains('chloride')) {
+            parameterName = 'Chloride';
+          } else if (lowerLine.contains('phosphorus') ||
+              lowerLine.contains('phosphate')) {
+            parameterName = 'Phosphorus';
+          } else if (lowerLine.contains('alkaline phosphatase') ||
+              lowerLine.contains('alp')) {
+            parameterName = 'Alkaline Phosphatase';
+          } else if (lowerLine.contains('total protein')) {
+            parameterName = 'Total Protein';
+          } else if (lowerLine.contains('albumin')) {
+            parameterName = 'Albumin';
+          } else if (lowerLine.contains('cholesterol') &&
+              lowerLine.contains('hdl')) {
+            parameterName = 'HDL Cholesterol';
+          } else if (lowerLine.contains('cholesterol') &&
+              lowerLine.contains('ldl')) {
+            parameterName = 'LDL Cholesterol';
+          } else if (lowerLine.contains('cholesterol')) {
+            parameterName = 'Cholesterol';
+          } else if (lowerLine.contains('triglycerides')) {
+            parameterName = 'Triglycerides';
+          } else if (lowerLine.contains('rbc')) {
+            parameterName = 'RBC';
+          } else if (lowerLine.contains('wbc')) {
+            parameterName = 'WBC';
+          } else if (lowerLine.contains('platelet')) {
+            parameterName = 'Platelets';
+          } else if (lowerLine.contains('alt') || lowerLine.contains('sgpt')) {
+            parameterName = 'ALT';
+          } else if (lowerLine.contains('ast') || lowerLine.contains('sgot')) {
+            parameterName = 'AST';
+          }
+
+          // Handle EGFR special case where it may have "L" prefix
+          var value = '';
+          var unit = '';
+          if (parameterName == 'eGFR' &&
+              match.groupCount >= 3 &&
+              match.group(1) != null &&
+              match.group(1)!.contains('L')) {
+            value = match.group(2) ?? '';
+            unit = match.group(3) ?? '';
+          } else {
+            value = match.group(1) ?? '';
+            unit = match.group(2) ?? '';
+          }
+
+          print('✅ Extracted: $parameterName = $value $unit');
 
           // Determine status based on value and parameter
           final status =
@@ -179,14 +368,62 @@ class ReportProvider extends ChangeNotifier {
 
           final normalRanges = _getNormalRange(parameterName);
 
+          // Determine test category and subcategory
+          String testCategory = 'Blood Test';
+          String testSubCategory = parameterName;
+
+          if (parameterName == 'TSH' ||
+              parameterName == 'T3' ||
+              parameterName == 'T4') {
+            testCategory = 'Thyroid Test';
+            testSubCategory = 'Thyroid';
+          } else if (parameterName == 'Glucose' ||
+              parameterName == 'HbA1c' ||
+              parameterName == 'Average Blood Glucose') {
+            testCategory = 'Blood Sugar Test';
+            testSubCategory = 'Glucose';
+          } else if (parameterName == 'Hemoglobin' ||
+              parameterName == 'RBC' ||
+              parameterName == 'WBC' ||
+              parameterName == 'Platelets') {
+            testCategory = 'Complete Blood Count';
+            testSubCategory = 'CBC';
+          } else if (parameterName == 'Cholesterol' ||
+              parameterName == 'HDL Cholesterol' ||
+              parameterName == 'LDL Cholesterol' ||
+              parameterName == 'Triglycerides') {
+            testCategory = 'Lipid Profile';
+            testSubCategory = 'Lipids';
+          } else if (parameterName == 'Creatinine' ||
+              parameterName == 'Urea' ||
+              parameterName == 'BUN' ||
+              parameterName == 'Uric Acid' ||
+              parameterName == 'eGFR') {
+            testCategory = 'Kidney Function Test';
+            testSubCategory = 'Renal';
+          } else if (parameterName == 'Calcium' ||
+              parameterName == 'Potassium' ||
+              parameterName == 'Sodium' ||
+              parameterName == 'Chloride' ||
+              parameterName == 'Phosphorus') {
+            testCategory = 'Electrolytes';
+            testSubCategory = 'Minerals';
+          } else if (parameterName == 'ALT' ||
+              parameterName == 'AST' ||
+              parameterName == 'Alkaline Phosphatase' ||
+              parameterName == 'Total Protein' ||
+              parameterName == 'Albumin') {
+            testCategory = 'Liver Function Test';
+            testSubCategory = 'Hepatic';
+          }
+
           results.add({
-            'testName': parameterName,
-            'testCategory':
-                parameterName, // Use parameter name as category for now
-            'testSubCategory': parameterName,
+            'testName': testCategory,
+            'testCategory': testCategory,
+            'testSubCategory': testSubCategory,
             'parameterName': parameterName,
             'value': value,
-            'unit': unit,
+            'unit': unit.isNotEmpty ? unit : 'N/A',
             'status': status,
             'referenceRange': _getReferenceRange(parameterName),
             'normalMin': normalRanges['min'],
@@ -196,24 +433,92 @@ class ReportProvider extends ChangeNotifier {
       }
     }
 
+    print('📊 Total extracted test results: ${results.length}');
     return results;
   }
 
   String _determineStatus(String parameter, double value) {
     final param = parameter.toLowerCase();
 
-    if (param.contains('hemoglobin') ||
+    // Thyroid Tests
+    if (param.contains('tsh')) {
+      return value < 0.5 ? 'LOW' : (value > 5.0 ? 'HIGH' : 'NORMAL');
+    } else if (param.contains('t3')) {
+      return value < 80 ? 'LOW' : (value > 200 ? 'HIGH' : 'NORMAL');
+    } else if (param.contains('t4')) {
+      return value < 5.0 ? 'LOW' : (value > 12.0 ? 'HIGH' : 'NORMAL');
+    }
+    // Blood Count
+    else if (param.contains('hemoglobin') ||
         param.contains('hb') ||
         param.contains('hgb')) {
       return value < 12 ? 'LOW' : (value > 16 ? 'HIGH' : 'NORMAL');
-    } else if (param.contains('glucose') || param.contains('sugar')) {
-      return value < 70 ? 'LOW' : (value > 100 ? 'HIGH' : 'NORMAL');
-    } else if (param.contains('cholesterol')) {
-      return value > 200 ? 'HIGH' : 'NORMAL';
     } else if (param.contains('rbc')) {
       return value < 4.5 ? 'LOW' : (value > 5.5 ? 'HIGH' : 'NORMAL');
     } else if (param.contains('wbc')) {
       return value < 4000 ? 'LOW' : (value > 11000 ? 'HIGH' : 'NORMAL');
+    } else if (param.contains('platelet')) {
+      return value < 150000 ? 'LOW' : (value > 400000 ? 'HIGH' : 'NORMAL');
+    }
+    // Blood Sugar
+    else if (param.contains('glucose') ||
+        param.contains('sugar') ||
+        param.contains('fbs')) {
+      return value < 70 ? 'LOW' : (value > 100 ? 'HIGH' : 'NORMAL');
+    } else if (param.contains('hba1c') || param.contains('a1c')) {
+      return value > 5.6 ? 'HIGH' : 'NORMAL';
+    }
+    // Lipids
+    else if (param.contains('cholesterol') &&
+        !param.contains('hdl') &&
+        !param.contains('ldl')) {
+      return value > 200 ? 'HIGH' : 'NORMAL';
+    } else if (param.contains('hdl')) {
+      return value < 40 ? 'LOW' : 'NORMAL';
+    } else if (param.contains('ldl')) {
+      return value > 100 ? 'HIGH' : 'NORMAL';
+    } else if (param.contains('triglyceride')) {
+      return value > 150 ? 'HIGH' : 'NORMAL';
+    }
+    // Blood Sugar - ABG
+    else if (param.contains('average') && param.contains('glucose')) {
+      return value < 90 ? 'LOW' : (value > 130 ? 'HIGH' : 'NORMAL');
+    }
+    // Kidney Function
+    else if (param.contains('creatinine')) {
+      return value < 0.6 ? 'LOW' : (value > 1.3 ? 'HIGH' : 'NORMAL');
+    } else if (param.contains('urea') && !param.contains('bun')) {
+      return value < 16 ? 'LOW' : (value > 48 ? 'HIGH' : 'NORMAL');
+    } else if (param.contains('bun')) {
+      return value < 7 ? 'LOW' : (value > 20 ? 'HIGH' : 'NORMAL');
+    } else if (param.contains('uric')) {
+      return value < 3.5 ? 'LOW' : (value > 7.2 ? 'HIGH' : 'NORMAL');
+    } else if (param.contains('gfr') || param.contains('egfr')) {
+      return value < 60 ? 'LOW' : 'NORMAL';
+    }
+    // Electrolytes
+    else if (param.contains('calcium')) {
+      return value < 8.5 ? 'LOW' : (value > 10.5 ? 'HIGH' : 'NORMAL');
+    } else if (param.contains('potassium')) {
+      return value < 3.5 ? 'LOW' : (value > 5.0 ? 'HIGH' : 'NORMAL');
+    } else if (param.contains('sodium')) {
+      return value < 135 ? 'LOW' : (value > 145 ? 'HIGH' : 'NORMAL');
+    } else if (param.contains('chloride')) {
+      return value < 96 ? 'LOW' : (value > 106 ? 'HIGH' : 'NORMAL');
+    } else if (param.contains('phosphorus')) {
+      return value < 2.5 ? 'LOW' : (value > 4.5 ? 'HIGH' : 'NORMAL');
+    }
+    // Liver Function & Proteins
+    else if (param.contains('alt') || param.contains('sgpt')) {
+      return value > 40 ? 'HIGH' : 'NORMAL';
+    } else if (param.contains('ast') || param.contains('sgot')) {
+      return value > 40 ? 'HIGH' : 'NORMAL';
+    } else if (param.contains('alkaline') || param.contains('alp')) {
+      return value < 30 ? 'LOW' : (value > 120 ? 'HIGH' : 'NORMAL');
+    } else if (param.contains('total protein')) {
+      return value < 6.0 ? 'LOW' : (value > 8.3 ? 'HIGH' : 'NORMAL');
+    } else if (param.contains('albumin')) {
+      return value < 3.5 ? 'LOW' : (value > 5.5 ? 'HIGH' : 'NORMAL');
     }
 
     return 'NORMAL';
@@ -222,16 +527,81 @@ class ReportProvider extends ChangeNotifier {
   String? _getReferenceRange(String parameter) {
     final param = parameter.toLowerCase();
 
-    if (param.contains('hemoglobin') || param.contains('hb')) {
+    // Thyroid
+    if (param.contains('tsh')) {
+      return '0.5-5.0 mIU/L';
+    } else if (param.contains('t3')) {
+      return '80-200 ng/dL';
+    } else if (param.contains('t4')) {
+      return '5.0-12.0 µg/dL';
+    }
+    // Blood Count
+    else if (param.contains('hemoglobin') || param.contains('hb')) {
       return '12-16 g/dL';
-    } else if (param.contains('glucose')) {
-      return '70-100 mg/dL';
-    } else if (param.contains('cholesterol')) {
-      return '<200 mg/dL';
     } else if (param.contains('rbc')) {
       return '4.5-5.5 million/µL';
     } else if (param.contains('wbc')) {
       return '4000-11000 cells/µL';
+    } else if (param.contains('platelet')) {
+      return '150000-400000 /µL';
+    }
+    // Blood Sugar
+    else if (param.contains('glucose')) {
+      return '70-100 mg/dL';
+    } else if (param.contains('hba1c')) {
+      return '4.0-5.6 %';
+    }
+    // Lipids
+    else if (param.contains('cholesterol') &&
+        !param.contains('hdl') &&
+        !param.contains('ldl')) {
+      return '<200 mg/dL';
+    } else if (param.contains('hdl')) {
+      return '>40 mg/dL';
+    } else if (param.contains('ldl')) {
+      return '<100 mg/dL';
+    } else if (param.contains('triglyceride')) {
+      return '<150 mg/dL';
+    }
+    // ABG
+    else if (param.contains('average') && param.contains('glucose')) {
+      return '90-130 mg/dL';
+    }
+    // Kidney
+    else if (param.contains('creatinine')) {
+      return '0.6-1.3 mg/dL';
+    } else if (param.contains('urea') && !param.contains('bun')) {
+      return '16-48 mg/dL';
+    } else if (param.contains('bun')) {
+      return '7-20 mg/dL';
+    } else if (param.contains('uric')) {
+      return '3.5-7.2 mg/dL';
+    } else if (param.contains('gfr') || param.contains('egfr')) {
+      return '>60 mL/min/1.73m²';
+    }
+    // Electrolytes
+    else if (param.contains('calcium')) {
+      return '8.5-10.5 mg/dL';
+    } else if (param.contains('potassium')) {
+      return '3.5-5.0 mEq/L';
+    } else if (param.contains('sodium')) {
+      return '135-145 mEq/L';
+    } else if (param.contains('chloride')) {
+      return '96-106 mEq/L';
+    } else if (param.contains('phosphorus')) {
+      return '2.5-4.5 mg/dL';
+    }
+    // Liver & Proteins
+    else if (param.contains('alt') || param.contains('sgpt')) {
+      return '<40 U/L';
+    } else if (param.contains('ast') || param.contains('sgot')) {
+      return '<40 U/L';
+    } else if (param.contains('alkaline') || param.contains('alp')) {
+      return '30-120 U/L';
+    } else if (param.contains('total protein')) {
+      return '6.0-8.3 g/dL';
+    } else if (param.contains('albumin')) {
+      return '3.5-5.5 g/dL';
     }
 
     return null;
@@ -240,24 +610,91 @@ class ReportProvider extends ChangeNotifier {
   Map<String, double?> _getNormalRange(String parameter) {
     final param = parameter.toLowerCase();
 
-    if (param.contains('hemoglobin') ||
+    // Thyroid
+    if (param.contains('tsh')) {
+      return {'min': 0.5, 'max': 5.0};
+    } else if (param.contains('t3')) {
+      return {'min': 80.0, 'max': 200.0};
+    } else if (param.contains('t4')) {
+      return {'min': 5.0, 'max': 12.0};
+    }
+    // Blood Count
+    else if (param.contains('hemoglobin') ||
         param.contains('hb') ||
         param.contains('hgb')) {
       return {'min': 12.0, 'max': 16.0};
-    } else if (param.contains('glucose') || param.contains('sugar')) {
-      return {'min': 70.0, 'max': 100.0};
-    } else if (param.contains('cholesterol')) {
-      return {'min': null, 'max': 200.0};
     } else if (param.contains('rbc')) {
       return {'min': 4.5, 'max': 5.5};
     } else if (param.contains('wbc')) {
       return {'min': 4000.0, 'max': 11000.0};
     } else if (param.contains('platelets') || param.contains('plt')) {
-      return {'min': 150.0, 'max': 400.0};
-    } else if (param.contains('creatinine')) {
+      return {'min': 150000.0, 'max': 400000.0};
+    }
+    // Blood Sugar
+    else if (param.contains('average') && param.contains('glucose')) {
+      return {'min': 90.0, 'max': 130.0};
+    } else if (param.contains('glucose') || param.contains('sugar')) {
+      return {'min': 70.0, 'max': 100.0};
+    } else if (param.contains('hba1c')) {
+      return {'min': 4.0, 'max': 5.6};
+    }
+    // Kidney Function
+    else if (param.contains('creatinine')) {
+      return {'min': 0.6, 'max': 1.3};
+    } else if (param.contains('urea') && !param.contains('bun')) {
+      return {'min': 16.0, 'max': 48.0};
+    } else if (param.contains('bun')) {
+      return {'min': 7.0, 'max': 20.0};
+    } else if (param.contains('uric')) {
+      return {'min': 3.5, 'max': 7.2};
+    } else if (param.contains('gfr') || param.contains('egfr')) {
+      return {'min': 60.0, 'max': null};
+    }
+    // Electrolytes
+    else if (param.contains('calcium')) {
+      return {'min': 8.5, 'max': 10.5};
+    } else if (param.contains('potassium')) {
+      return {'min': 3.5, 'max': 5.0};
+    } else if (param.contains('sodium')) {
+      return {'min': 135.0, 'max': 145.0};
+    } else if (param.contains('chloride')) {
+      return {'min': 96.0, 'max': 106.0};
+    } else if (param.contains('phosphorus')) {
+      return {'min': 2.5, 'max': 4.5};
+    }
+    // Liver & Proteins
+    else if (param.contains('alkaline') || param.contains('alp')) {
+      return {'min': 30.0, 'max': 120.0};
+    } else if (param.contains('total protein')) {
+      return {'min': 6.0, 'max': 8.3};
+    } else if (param.contains('albumin')) {
+      return {'min': 3.5, 'max': 5.5};
+    } else if (param.contains('alt') || param.contains('sgpt')) {
+      return {'min': null, 'max': 40.0};
+    } else if (param.contains('ast') || param.contains('sgot')) {
+      return {'min': null, 'max': 40.0};
+    }
+    // Lipids
+    else if (param.contains('cholesterol')) {
+      return {'min': null, 'max': 200.0};
+    } else if (param.contains('hdl')) {
+      return {'min': 40.0, 'max': null};
+    } else if (param.contains('ldl')) {
+      return {'min': null, 'max': 100.0};
+    } else if (param.contains('triglyceride')) {
+      return {'min': null, 'max': 150.0};
+    }
+    // Kidney
+    else if (param.contains('creatinine')) {
       return {'min': 0.6, 'max': 1.2};
     } else if (param.contains('urea') || param.contains('bun')) {
       return {'min': 7.0, 'max': 20.0};
+    }
+    // Liver
+    else if (param.contains('alt') || param.contains('sgpt')) {
+      return {'min': null, 'max': 40.0};
+    } else if (param.contains('ast') || param.contains('sgot')) {
+      return {'min': null, 'max': 40.0};
     }
 
     return {'min': null, 'max': null};

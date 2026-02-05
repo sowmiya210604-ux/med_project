@@ -7,9 +7,9 @@ class TestResultChart extends StatelessWidget {
   final List<TestResult> results;
 
   const TestResultChart({
-    Key? key,
+    super.key,
     required this.results,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -30,8 +30,8 @@ class TestResultChart extends StatelessWidget {
           drawVerticalLine: false,
           horizontalInterval: 1,
           getDrawingHorizontalLine: (value) {
-            return FlLine(
-              color: const Color(0xFFE5E7EB),
+            return const FlLine(
+              color: Color(0xFFE5E7EB),
               strokeWidth: 1,
             );
           },
@@ -75,10 +75,10 @@ class TestResultChart extends StatelessWidget {
               },
             ),
           ),
-          rightTitles: AxisTitles(
+          rightTitles: const AxisTitles(
             sideTitles: SideTitles(showTitles: false),
           ),
-          topTitles: AxisTitles(
+          topTitles: const AxisTitles(
             sideTitles: SideTitles(showTitles: false),
           ),
         ),
@@ -143,7 +143,7 @@ class TestResultChart extends StatelessWidget {
               color: AppColors.success.withOpacity(0.5),
               barWidth: 1,
               dashArray: [5, 5],
-              dotData: FlDotData(show: false),
+              dotData: const FlDotData(show: false),
             ),
           if (sortedResults.first.normalMax != null)
             LineChartBarData(
@@ -158,7 +158,7 @@ class TestResultChart extends StatelessWidget {
               color: AppColors.success.withOpacity(0.5),
               barWidth: 1,
               dashArray: [5, 5],
-              dotData: FlDotData(show: false),
+              dotData: const FlDotData(show: false),
             ),
         ],
         lineTouchData: LineTouchData(

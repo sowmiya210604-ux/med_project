@@ -16,7 +16,7 @@ class FilterWidget extends StatefulWidget {
   final VoidCallback onReset;
 
   const FilterWidget({
-    Key? key,
+    super.key,
     this.startDate,
     this.endDate,
     this.selectedType,
@@ -27,7 +27,7 @@ class FilterWidget extends StatefulWidget {
     required this.onTypeChanged,
     required this.onStatusChanged,
     required this.onReset,
-  }) : super(key: key);
+  });
 
   @override
   State<FilterWidget> createState() => _FilterWidgetState();

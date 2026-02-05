@@ -7,9 +7,9 @@ class TestDetailScreen extends StatelessWidget {
   final String testName;
 
   const TestDetailScreen({
-    Key? key,
+    super.key,
     required this.testName,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

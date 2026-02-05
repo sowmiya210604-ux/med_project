@@ -9,9 +9,9 @@ class MainScreen extends StatefulWidget {
   final int initialIndex;
 
   const MainScreen({
-    Key? key,
+    super.key,
     this.initialIndex = 0,
-  }) : super(key: key);
+  });
 
   @override
   State<MainScreen> createState() => MainScreenState();
@@ -19,6 +19,7 @@ class MainScreen extends StatefulWidget {
 
 class MainScreenState extends State<MainScreen> {
   late int _currentIndex;
+  final List<Widget?> _cachedScreens = [null, null, null, null];
 
   @override
   void initState() {
@@ -32,40 +33,42 @@ class MainScreenState extends State<MainScreen> {
     });
   }
 
-  List<Widget> get _screens => [
-        HomeScreen(
+  Widget _getScreen(int index) {
+    // Cache screens once they're built
+    if (_cachedScreens[index] != null) {
+      return _cachedScreens[index]!;
+    }
+
+    Widget screen;
+    switch (index) {
+      case 0:
+        screen = HomeScreen(
+          key: const ValueKey('home'),
           onNavigateToReports: () => switchToTab(1),
           onNavigateToProfile: () => switchToTab(3),
-        ),
-        const ReportsScreen(),
-        const InsightsScreen(),
-        const ProfileScreen(),
-      ];
+        );
+        break;
+      case 1:
+        screen = const ReportsScreen(key: ValueKey('reports'));
+        break;
+      case 2:
+        screen = const InsightsScreen(key: ValueKey('insights'));
+        break;
+      case 3:
+        screen = const ProfileScreen(key: ValueKey('profile'));
+        break;
+      default:
+        screen = Container();
+    }
+
+    _cachedScreens[index] = screen;
+    return screen;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        transitionBuilder: (Widget child, Animation<double> animation) {
-          return FadeTransition(
-            opacity: animation,
-            child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0.05, 0),
-                end: Offset.zero,
-              ).animate(
-                CurvedAnimation(
-                  parent: animation,
-                  curve: Curves.easeOutCubic,
-                ),
-              ),
-              child: child,
-            ),
-          );
-        },
-        child: _screens[_currentIndex],
-      ),
+      body: _getScreen(_currentIndex),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           boxShadow: [
@@ -79,6 +82,7 @@ class MainScreenState extends State<MainScreen> {
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
           onTap: (index) {
+            print('🔴 MainScreen: Navigating to tab $index');
             setState(() {
               _currentIndex = index;
             });

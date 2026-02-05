@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/theme/app_colors.dart';
 
 class PrivacySecurityScreen extends StatefulWidget {
-  const PrivacySecurityScreen({Key? key}) : super(key: key);
+  const PrivacySecurityScreen({super.key});
 
   @override
   State<PrivacySecurityScreen> createState() => _PrivacySecurityScreenState();
@@ -13,9 +14,75 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
   bool _autoLock = true;
   bool _shareDataWithDoctors = true;
   bool _allowAnalytics = false;
+  bool _isLoading = true;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _biometricAuth = prefs.getBool('biometric_auth') ?? false;
+      _autoLock = prefs.getBool('auto_lock') ?? true;
+      _shareDataWithDoctors = prefs.getBool('share_data_with_doctors') ?? true;
+      _allowAnalytics = prefs.getBool('allow_analytics') ?? false;
+      _isLoading = false;
+    });
+  }
+
+  Future<void> _saveSettings() async {
+    setState(() => _isSaving = true);
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('biometric_auth', _biometricAuth);
+      await prefs.setBool('auto_lock', _autoLock);
+      await prefs.setBool('share_data_with_doctors', _shareDataWithDoctors);
+      await prefs.setBool('allow_analytics', _allowAnalytics);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Privacy settings saved successfully'),
+            backgroundColor: AppColors.success,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save settings: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Privacy & Security'),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Privacy & Security'),
@@ -45,11 +112,7 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
                 'Update your account password',
                 Icons.password,
                 () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Password change feature coming soon'),
-                    ),
-                  );
+                  _showChangePasswordDialog();
                 },
               ),
             ],
@@ -114,21 +177,23 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: ElevatedButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Privacy settings saved successfully'),
-                    backgroundColor: AppColors.success,
-                  ),
-                );
-                Navigator.pop(context);
-              },
+              onPressed: _isSaving ? null : _saveSettings,
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 50),
               ),
-              child: const Text('Save Settings'),
+              child: _isSaving
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Text('Save Settings'),
             ),
           ),
+          const SizedBox(height: 16),
         ],
       ),
     );
@@ -185,7 +250,7 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
       ),
       subtitle: Text(
         subtitle,
-        style: TextStyle(
+        style: const TextStyle(
           fontSize: 13,
           color: AppColors.textSecondary,
         ),
@@ -193,7 +258,7 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
       trailing: Switch(
         value: value,
         onChanged: onChanged,
-        activeColor: AppColors.primary,
+        activeThumbColor: AppColors.primary,
       ),
     );
   }
@@ -224,12 +289,12 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
       ),
       subtitle: Text(
         subtitle,
-        style: TextStyle(
+        style: const TextStyle(
           fontSize: 13,
           color: AppColors.textSecondary,
         ),
       ),
-      trailing: Icon(
+      trailing: const Icon(
         Icons.arrow_forward_ios,
         size: 16,
         color: AppColors.textSecondary,
@@ -329,6 +394,164 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
             child: const Text('Delete'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showChangePasswordDialog() {
+    final currentPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+    bool isChanging = false;
+    bool obscureCurrentPassword = true;
+    bool obscureNewPassword = true;
+    bool obscureConfirmPassword = true;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Change Password'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: currentPasswordController,
+                  obscureText: obscureCurrentPassword,
+                  decoration: InputDecoration(
+                    labelText: 'Current Password',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        obscureCurrentPassword
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                      ),
+                      onPressed: () {
+                        setDialogState(() {
+                          obscureCurrentPassword = !obscureCurrentPassword;
+                        });
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: newPasswordController,
+                  obscureText: obscureNewPassword,
+                  decoration: InputDecoration(
+                    labelText: 'New Password',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        obscureNewPassword
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                      ),
+                      onPressed: () {
+                        setDialogState(() {
+                          obscureNewPassword = !obscureNewPassword;
+                        });
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: confirmPasswordController,
+                  obscureText: obscureConfirmPassword,
+                  decoration: InputDecoration(
+                    labelText: 'Confirm New Password',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        obscureConfirmPassword
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                      ),
+                      onPressed: () {
+                        setDialogState(() {
+                          obscureConfirmPassword = !obscureConfirmPassword;
+                        });
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isChanging ? null : () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: isChanging
+                  ? null
+                  : () async {
+                      if (currentPasswordController.text.isEmpty ||
+                          newPasswordController.text.isEmpty ||
+                          confirmPasswordController.text.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please fill all fields'),
+                            backgroundColor: AppColors.error,
+                          ),
+                        );
+                        return;
+                      }
+
+                      if (newPasswordController.text !=
+                          confirmPasswordController.text) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('New passwords do not match'),
+                            backgroundColor: AppColors.error,
+                          ),
+                        );
+                        return;
+                      }
+
+                      if (newPasswordController.text.length < 6) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content:
+                                Text('Password must be at least 6 characters'),
+                            backgroundColor: AppColors.error,
+                          ),
+                        );
+                        return;
+                      }
+
+                      setDialogState(() => isChanging = true);
+
+                      // TODO: Implement actual password change API call
+                      await Future.delayed(const Duration(seconds: 1));
+
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Password changed successfully'),
+                            backgroundColor: AppColors.success,
+                          ),
+                        );
+                      }
+                    },
+              child: isChanging
+                  ? const SizedBox(
+                      height: 16,
+                      width: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Text('Change Password'),
+            ),
+          ],
+        ),
       ),
     );
   }

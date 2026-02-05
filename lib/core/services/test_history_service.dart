@@ -9,20 +9,33 @@ class TestHistoryService {
     required String testName,
     String? testSubCategory,
   }) async {
-    final queryParams = {
-      'testName': testName,
-      if (testSubCategory != null) 'testSubCategory': testSubCategory,
-    };
+    try {
+      final queryParams = {
+        'testName': testName,
+        if (testSubCategory != null) 'testSubCategory': testSubCategory,
+      };
 
-    final queryString = Uri(queryParameters: queryParams).query;
-    final url = '${ApiConfig.reportUrl}/tests/history?$queryString';
+      final queryString = Uri(queryParameters: queryParams).query;
+      final url = '${ApiConfig.reportUrl}/tests/history?$queryString';
 
-    final response = await HttpService.get(url, requiresAuth: true);
+      print('🌐 Fetching test history from: $url');
 
-    if (response['results'] != null) {
-      return List<Map<String, dynamic>>.from(response['results']);
+      final response = await HttpService.get(url, requiresAuth: true);
+
+      print('📥 Test history response: ${response.toString().substring(0, response.toString().length > 200 ? 200 : response.toString().length)}...');
+
+      if (response['results'] != null) {
+        final results = List<Map<String, dynamic>>.from(response['results']);
+        print('✅ Parsed ${results.length} results from response');
+        return results;
+      }
+      
+      print('⚠️ No results field in response');
+      return [];
+    } catch (e) {
+      print('❌ Error in getTestHistory: $e');
+      return [];
     }
-    return [];
   }
 
   /// Get recent test results (limited number for table display)
