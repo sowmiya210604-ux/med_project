@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_logo.dart';
@@ -54,17 +53,24 @@ class _LoginScreenState extends State<LoginScreen> {
           builder: (ctx) => _buildBlockedDialog(ctx, cleanedPhone),
         ).then((_) => _hasShownErrorDialog = false);
       } else if (errorMessage.toLowerCase().contains('incorrect password')) {
-        final remaining = authProvider.getRemainingAttempts(cleanedPhone);
         showDialog(
           context: context,
-          builder: (ctx) => _buildIncorrectPasswordDialog(ctx, errorMessage, remaining, cleanedPhone),
-        ).then((_) => _hasShownErrorDialog = false);
+          builder: (ctx) => _buildIncorrectPasswordDialog(ctx, errorMessage, cleanedPhone),
+        ).then((_) {
+          _hasShownErrorDialog = false;
+          // Clear only password field when password is incorrect
+          _passwordController.clear();
+        });
       } else if (errorMessage.toLowerCase().contains('mobile number not registered') ||
           errorMessage.toLowerCase().contains('not registered')) {
         showDialog(
           context: context,
           builder: (ctx) => _buildUnregisteredNumberDialog(ctx),
-        ).then((_) => _hasShownErrorDialog = false);
+        ).then((_) {
+          _hasShownErrorDialog = false;
+          // Clear only phone field when number is not registered
+          _phoneController.clear();
+        });
       } else if (errorMessage.toLowerCase().contains('not verified')) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -163,7 +169,11 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Widget _buildIncorrectPasswordDialog(BuildContext context, String message, int remaining, String phone) {
+  Widget _buildIncorrectPasswordDialog(BuildContext context, String message, String phone) {
+    // Calculate remaining attempts dynamically from the provider
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final remaining = authProvider.getRemainingAttempts(phone);
+    
     return AlertDialog(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),

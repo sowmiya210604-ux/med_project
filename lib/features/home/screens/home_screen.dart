@@ -9,6 +9,7 @@ import '../../reports/screens/upload_report_screen.dart';
 import '../../notifications/screens/notifications_screen.dart';
 import '../widgets/health_summary_card.dart';
 import '../widgets/recent_report_card.dart';
+import '../widgets/report_explorer/report_explorer_section.dart';
 import 'search_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -65,15 +66,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Welcome Message
-                    _buildWelcomeSection(userName),
-                    const SizedBox(height: 24),
-
                     // Health Summary with conditions from reports
-                    Consumer<ReportProvider>(
-                      builder: (context, reportProvider, _) {
+                    Consumer2<ReportProvider, AuthProvider>(
+                      builder: (context, reportProvider, authProvider, _) {
                         return HealthSummaryCard(
                           healthConditions: reportProvider.healthConditions,
+                          currentUser: authProvider.currentUser,
                         );
                       },
                     ),
@@ -83,8 +81,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     _buildSearchBar(),
                     const SizedBox(height: 24),
 
-                    // Recent Reports (always visible)
-                    _buildRecentReportsSection(),
+                    // Report Explorer Section
+                    const ReportExplorerSection(),
+                    const SizedBox(height: 24),
                   ],
                 ),
               ),
@@ -246,20 +245,23 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: const Color(0xFFD1D5DB),
+            width: 1.5,
+          ),
         ),
         padding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
+          horizontal: 14,
+          vertical: 10,
         ),
         child: Row(
           children: [
-            const Icon(Icons.search, color: AppColors.textSecondary),
-            const SizedBox(width: 12),
+            const Icon(Icons.search, color: AppColors.textSecondary, size: 20),
+            const SizedBox(width: 10),
             Text(
               'Search for tests...',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppColors.textHint,
                   ),
             ),

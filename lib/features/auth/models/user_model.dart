@@ -8,6 +8,8 @@ class User {
   final String? gender;
   final String? bloodGroup;
   final String? address;
+  final String? medicalHistory;
+  final String? currentMedicines;
 
   User({
     required this.id,
@@ -19,6 +21,8 @@ class User {
     this.gender,
     this.bloodGroup,
     this.address,
+    this.medicalHistory,
+    this.currentMedicines,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -35,6 +39,8 @@ class User {
       gender: json['gender'],
       bloodGroup: json['bloodGroup'],
       address: json['address'],
+      medicalHistory: json['medicalHistory'],
+      currentMedicines: json['currentMedicines'],
     );
   }
 
@@ -49,6 +55,8 @@ class User {
       'gender': gender,
       'bloodGroup': bloodGroup,
       'address': address,
+      'medicalHistory': medicalHistory,
+      'currentMedicines': currentMedicines,
     };
   }
 
@@ -62,6 +70,8 @@ class User {
     String? gender,
     String? bloodGroup,
     String? address,
+    String? medicalHistory,
+    String? currentMedicines,
   }) {
     return User(
       id: id ?? this.id,
@@ -73,6 +83,20 @@ class User {
       gender: gender ?? this.gender,
       bloodGroup: bloodGroup ?? this.bloodGroup,
       address: address ?? this.address,
+      medicalHistory: medicalHistory ?? this.medicalHistory,
+      currentMedicines: currentMedicines ?? this.currentMedicines,
     );
+  }
+
+  // Helper method to calculate age from date of birth
+  int? get age {
+    if (dateOfBirth == null) return null;
+    final now = DateTime.now();
+    int age = now.year - dateOfBirth!.year;
+    if (now.month < dateOfBirth!.month ||
+        (now.month == dateOfBirth!.month && now.day < dateOfBirth!.day)) {
+      age--;
+    }
+    return age;
   }
 }

@@ -5,6 +5,7 @@ import 'core/theme/app_theme.dart';
 import 'core/middleware/auth_guard.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/reports/providers/report_provider.dart';
+import 'features/reports/providers/report_explorer_provider.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/auth/screens/register_screen.dart';
 import 'features/auth/screens/otp_verification_screen.dart';
@@ -30,6 +31,7 @@ class MedTrackApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()..initialize()),
         ChangeNotifierProvider(create: (_) => ReportProvider()),
+        ChangeNotifierProvider(create: (_) => ReportExplorerProvider()),
       ],
       child: MaterialApp(
         title: 'Med Track',

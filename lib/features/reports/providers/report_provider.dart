@@ -5,12 +5,37 @@ import '../../../core/services/http_service.dart';
 import '../../../core/config/api_config.dart';
 import '../../../core/utils/storage_helper.dart';
 
+// Background isolate function for heavy JSON parsing
+List<MedicalReport> _parseReportsInBackground(Map<String, dynamic> response) {
+  if (response['reports'] == null) return [];
+
+  final reportsList = response['reports'] as List;
+  return reportsList.map((json) => MedicalReport.fromJson(json)).toList();
+}
+
+List<TestResult> _parseTestResultsInBackground(List<dynamic> reportsData) {
+  final testResults = <TestResult>[];
+
+  for (var report in reportsData) {
+    if (report['testResults'] != null && report['testResults'] is List) {
+      final testResultsData = report['testResults'] as List;
+      for (var testResult in testResultsData) {
+        testResults.add(TestResult.fromJson(testResult));
+      }
+    }
+  }
+
+  return testResults;
+}
+
 class ReportProvider extends ChangeNotifier {
   List<MedicalReport> _reports = [];
   List<TestResult> _testResults = [];
   List<String> _healthConditions = [];
   bool _isLoading = false;
   String? _errorMessage;
+  DateTime? _lastFetchTime;
+  static const _cacheDuration = Duration(minutes: 5);
 
   List<MedicalReport> get reports => _reports;
   List<TestResult> get testResults => _testResults;
@@ -18,8 +43,20 @@ class ReportProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
+  // Check if cache is still valid
+  bool get _isCacheValid {
+    if (_lastFetchTime == null) return false;
+    return DateTime.now().difference(_lastFetchTime!) < _cacheDuration;
+  }
+
   // Fetch all reports
-  Future<void> fetchReports() async {
+  Future<void> fetchReports({bool forceRefresh = false}) async {
+    // Return cached data if valid and not forcing refresh
+    if (!forceRefresh && _isCacheValid && _reports.isNotEmpty) {
+      print('✅ Using cached reports data');
+      return;
+    }
+
     _isLoading = true;
     _errorMessage = null; // Clear previous errors
     notifyListeners();
@@ -31,27 +68,22 @@ class ReportProvider extends ChangeNotifier {
         requiresAuth: true,
       );
 
-      // Parse reports from response
+      // Parse reports in background isolate to avoid blocking UI
       if (response['reports'] != null) {
         final reportsList = response['reports'] as List;
-        _reports =
-            reportsList.map((json) => MedicalReport.fromJson(json)).toList();
 
-        // Extract all test results from reports
-        _testResults.clear();
-        for (var report in reportsList) {
-          if (report['testResults'] != null && report['testResults'] is List) {
-            final testResultsData = report['testResults'] as List;
-            for (var testResult in testResultsData) {
-              _testResults.add(TestResult.fromJson(testResult));
-            }
-          }
-        }
+        // Use compute for heavy parsing operations
+        _reports = await compute(_parseReportsInBackground, response);
+        _testResults =
+            await compute(_parseTestResultsInBackground, reportsList);
       } else {
         // Empty response is valid - no reports yet
         _reports = [];
         _testResults = [];
       }
+
+      // Update cache timestamp
+      _lastFetchTime = DateTime.now();
 
       // Analyze health conditions from reports
       _analyzeHealthConditions();
@@ -64,6 +96,41 @@ class ReportProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
       // Don't rethrow - error is stored in _errorMessage for UI to handle
+    }
+  }
+
+  // Delete report
+  Future<bool> deleteReport(String reportId) async {
+    try {
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+
+      // Call backend API to delete report
+      await HttpService.delete(
+        '${ApiConfig.reportUrl}/$reportId',
+        requiresAuth: true,
+      );
+
+      // Remove report from local list
+      _reports.removeWhere((report) => report.id == reportId);
+
+      // Remove associated test results
+      _testResults.removeWhere((result) => result.reportId == reportId);
+
+      // Re-analyze health conditions
+      _analyzeHealthConditions();
+
+      _isLoading = false;
+      notifyListeners();
+
+      return true;
+    } catch (e) {
+      print('❌ Failed to delete report: $e');
+      _errorMessage = 'Failed to delete report: $e';
+      _isLoading = false;
+      notifyListeners();
+      return false;
     }
   }
 
@@ -99,9 +166,19 @@ class ReportProvider extends ChangeNotifier {
       }
       allTestResults.addAll(analyzedTestResults);
 
-      print('🚀 Uploading report with ${allTestResults.length} test results');
+      print('🚀 Uploading report:');
+      print('   Test Type: $testType');
+      print('   Test Results Count: ${allTestResults.length}');
+      print('   OCR Text Length: ${extractedText?.length ?? 0} chars');
       if (allTestResults.isEmpty) {
         print('⚠️ WARNING: No test results extracted! OCR may have failed.');
+        print('   OCR text preview: ${extractedText?.substring(0, extractedText.length > 200 ? 200 : extractedText.length) ?? "empty"}');
+      } else {
+        print('   First 3 results:');
+        for (var i = 0; i < (allTestResults.length > 3 ? 3 : allTestResults.length); i++) {
+          final r = allTestResults[i];
+          print('      ${i + 1}. ${r['parameterName']}: ${r['value']} ${r['unit']}');
+        }
       }
 
       // Call backend API to upload report
@@ -157,6 +234,21 @@ class ReportProvider extends ChangeNotifier {
 
     print('📝 OCR Text to analyze (${lines.length} lines):');
     print('${text.substring(0, text.length > 200 ? 200 : text.length)}...');
+
+    // First try Labsmart format (for Labsmart Software PDFs)
+    final labsmartResults = _extractLabsmartFormat(text);
+    if (labsmartResults.isNotEmpty) {
+      print('✅ Extracted ${labsmartResults.length} results using Labsmart format');
+      return labsmartResults;
+    }
+
+    // Then try to extract using table-like format (parameter  value)
+    // This handles OCR text where parameters and values are space-separated
+    final tableResults = _extractFromTableFormat(text);
+    if (tableResults.isNotEmpty) {
+      print('✅ Extracted ${tableResults.length} results using table format');
+      return tableResults;
+    }
 
     // Comprehensive test parameter patterns for various lab report formats
     final patterns = [
@@ -434,6 +526,337 @@ class ReportProvider extends ChangeNotifier {
     }
 
     print('📊 Total extracted test results: ${results.length}');
+    return results;
+  }
+
+  // Extract test data from Labsmart Software format
+  // Handles formats like: "BUN  10.27  mg/dl  7.9 - 20"
+  List<Map<String, dynamic>> _extractLabsmartFormat(String text) {
+    final results = <Map<String, dynamic>>[];
+    final lines = text.split('\n');
+
+    print('🔍 Trying Labsmart format extraction...');
+
+    // Pattern for: PARAMETER_NAME  VALUE  UNIT  REFERENCE_RANGE
+    final pattern = RegExp(
+      r'^([A-Z][A-Za-z\s/]+?)\s{2,}([\d.]+)\s+(mg/dl|mg/dL|mmol/L|mEq/L|ml/min[^\s]*|U/L|g/dL|%)',
+      caseSensitive: false,
+    );
+
+    // Pattern for: PARAMETER_NAME  L/H  VALUE  UNIT (with status indicator)
+    final statusPattern = RegExp(
+      r'^([A-Z][A-Za-z\s/]+?)\s+([LHN])\s+([\d.]+)\s+(mg/dl|mg/dL|mmol/L|mEq/L|ml/min[^\s]*)',
+      caseSensitive: false,
+    );
+
+    // Known parameter name mappings (expanded for multiple test types)
+    final knownParams = {
+      // Kidney Function Tests
+      'bun': 'BUN',
+      'serum urea': 'Blood Urea',
+      'urea': 'Blood Urea',
+      'creatinine': 'Creatinine',
+      'serum creatinine': 'Creatinine',
+      'egfr': 'eGFR',
+      'calcium': 'Calcium',
+      'serum calcium': 'Calcium',
+      'potassium': 'Potassium',
+      'serum potassium': 'Potassium',
+      'sodium': 'Sodium',
+      'serum sodium': 'Sodium',
+      'uric acid': 'Uric Acid',
+      'serum uric acid': 'Uric Acid',
+      // Lipid Profile
+      'total cholesterol': 'Total Cholesterol',
+      'cholesterol': 'Total Cholesterol',
+      'hdl cholesterol': 'HDL Cholesterol',
+      'hdl': 'HDL Cholesterol',
+      'ldl cholesterol': 'LDL Cholesterol',
+      'ldl': 'LDL Cholesterol',
+      'triglycerides': 'Triglycerides',
+      'vldl': 'VLDL',
+      // Blood Sugar Tests
+      'glucose': 'Glucose',
+      'blood glucose': 'Glucose',
+      'fasting glucose': 'Fasting Glucose',
+      'hba1c': 'HbA1c',
+      'glycated hemoglobin': 'HbA1c',
+      // Complete Blood Count
+      'hemoglobin': 'Hemoglobin',
+      'haemoglobin': 'Hemoglobin',
+      'hb': 'Hemoglobin',
+      'rbc': 'RBC Count',
+      'wbc': 'WBC Count',
+      'platelet': 'Platelet Count',
+      'platelets': 'Platelet Count',
+      // Liver Function Tests
+      'sgot': 'SGOT (AST)',
+      'ast': 'SGOT (AST)',
+      'sgpt': 'SGPT (ALT)',
+      'alt': 'SGPT (ALT)',
+      'bilirubin': 'Bilirubin',
+      'total bilirubin': 'Total Bilirubin',
+      // Thyroid Tests
+      'tsh': 'TSH',
+      't3': 'T3',
+      't4': 'T4',
+    };
+
+    for (final line in lines) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty || trimmed.length < 5) continue;
+
+      // Try pattern with status indicator first
+      var match = statusPattern.firstMatch(trimmed);
+      if (match != null) {
+        final rawParam = match.group(1)!.trim();
+        final normalizedParam = knownParams[rawParam.toLowerCase()] ?? rawParam;
+        
+        // Process any known parameter or reasonable looking parameter
+        if (knownParams.containsKey(rawParam.toLowerCase()) || rawParam.length > 2) {
+          final value = match.group(3)!;
+          final unit = match.group(4)!;
+          results.add(_buildTestResult(normalizedParam, value, unit));
+          continue;
+        }
+      }
+
+      // Try standard pattern
+      match = pattern.firstMatch(trimmed);
+      if (match != null) {
+        final rawParam = match.group(1)!.trim();
+        final normalizedParam = knownParams[rawParam.toLowerCase()] ?? rawParam;
+        
+        // Process any known parameter or reasonable looking parameter
+        if (knownParams.containsKey(rawParam.toLowerCase()) || rawParam.length > 2) {
+          final value = match.group(2)!;
+          final unit = match.group(3)!;
+          results.add(_buildTestResult(normalizedParam, value, unit));
+        }
+      }
+    }
+
+    if (results.isNotEmpty) {
+      print('✅ Labsmart format extracted ${results.length} parameters');
+    }
+
+    return results;
+  }
+
+  // Build test result for any test parameter (generic)
+  Map<String, dynamic> _buildTestResult(String paramName, String value, String unit) {
+    final numValue = double.tryParse(value) ?? 0.0;
+    final status = _determineStatus(paramName, numValue);
+    final normalRanges = _getNormalRange(paramName);
+    final testCategoryInfo = _getTestCategoryForParameter(paramName);
+
+    print('✅ Extracted: $paramName = $value $unit [$status]');
+
+    return {
+      'testName': testCategoryInfo['testName']!,
+      'testCategory': testCategoryInfo['testCategory']!,
+      'testSubCategory': testCategoryInfo['testSubCategory']!,
+      'parameterName': paramName,
+      'value': value,
+      'unit': unit,
+      'status': status,
+      'referenceRange': _getReferenceRange(paramName),
+      'normalMin': normalRanges['min'],
+      'normalMax': normalRanges['max'],
+    };
+  }
+
+  // Get test category information for any parameter
+  Map<String, String> _getTestCategoryForParameter(String paramName) {
+    final lower = paramName.toLowerCase();
+    
+    // Lipid Profile
+    if (['cholesterol', 'hdl', 'ldl', 'triglycerides', 'vldl'].any((p) => lower.contains(p))) {
+      return {
+        'testName': 'Lipid Profile',
+        'testCategory': 'Lipid Profile',
+        'testSubCategory': 'Lipids',
+      };
+    }
+    
+    // Kidney Function Tests
+    if (['bun', 'urea', 'creatinine', 'egfr', 'uric acid'].any((p) => lower.contains(p))) {
+      return {
+        'testName': 'Kidney Function Test (KFT/RFT)',
+        'testCategory': 'Kidney Function Test (KFT/RFT)',
+        'testSubCategory': 'Renal',
+      };
+    }
+    
+    // Blood Sugar Tests
+    if (['glucose', 'hba1c', 'sugar'].any((p) => lower.contains(p))) {
+      return {
+        'testName': 'Blood Sugar Test',
+        'testCategory': 'Blood Sugar Test',
+        'testSubCategory': 'Glucose',
+      };
+    }
+    
+    // Liver Function Tests
+    if (['sgot', 'sgpt', 'ast', 'alt', 'bilirubin', 'albumin'].any((p) => lower.contains(p))) {
+      return {
+        'testName': 'Liver Function Test',
+        'testCategory': 'Liver Function Test',
+        'testSubCategory': 'Hepatic',
+      };
+    }
+    
+    // Complete Blood Count
+    if (['hemoglobin', 'hb', 'rbc', 'wbc', 'platelet'].any((p) => lower.contains(p))) {
+      return {
+        'testName': 'Complete Blood Count',
+        'testCategory': 'Complete Blood Count',
+        'testSubCategory': 'CBC',
+      };
+    }
+    
+    // Thyroid Tests
+    if (['tsh', 't3', 't4', 'thyroid'].any((p) => lower.contains(p))) {
+      return {
+        'testName': 'Thyroid Test',
+        'testCategory': 'Thyroid Test',
+        'testSubCategory': 'Thyroid',
+      };
+    }
+    
+    // Default
+    return {
+      'testName': 'Blood Test',
+      'testCategory': 'Blood Test',
+      'testSubCategory': paramName,
+    };
+  }
+
+  // Extract test data from table-like OCR format
+  // Handles formats like: "Urea                   16.00       7.50-6.00"
+  List<Map<String, dynamic>> _extractFromTableFormat(String text) {
+    final List<Map<String, dynamic>> results = [];
+    final lines = text.split('\n');
+
+    // Define parameter names to look for
+    final parameterPatterns = {
+      'Urea':
+          RegExp(r'^Urea\s+([\d.]+)', caseSensitive: false, multiLine: false),
+      'Creatinine': RegExp(r'^Creatinine\s+([\d.]+)',
+          caseSensitive: false, multiLine: false),
+      'Uric Acid': RegExp(r'^Uric\s+Acid\s+([\d.]+)',
+          caseSensitive: false, multiLine: false),
+      'Calcium': RegExp(r'^Calcium\s+([\d.]+)',
+          caseSensitive: false, multiLine: false),
+      'Phosphorus': RegExp(r'^Phosphorus\s+([\d.]+)',
+          caseSensitive: false, multiLine: false),
+      'Sodium':
+          RegExp(r'^Sodium\s+([\d.]+)', caseSensitive: false, multiLine: false),
+      'Potassium': RegExp(r'^Potassium\s+([\d.]+)',
+          caseSensitive: false, multiLine: false),
+      'Chloride': RegExp(r'^Chloride\s+([\d.]+)',
+          caseSensitive: false, multiLine: false),
+      'Total Protein': RegExp(r'^Total\s+Protein\s+([\d.]+)',
+          caseSensitive: false, multiLine: false),
+      'Albumin': RegExp(r'^Albumin\s+([\d.]+)',
+          caseSensitive: false, multiLine: false),
+      'Alkaline Phosphatase': RegExp(r'^Alkaline\s+Phosphatase\s+([\d.]+)',
+          caseSensitive: false, multiLine: false),
+      'TSH': RegExp(r'^TSH\s+([\d.]+)', caseSensitive: false, multiLine: false),
+      'T3': RegExp(r'^T3\s+([\d.]+)', caseSensitive: false, multiLine: false),
+      'T4': RegExp(r'^T4\s+([\d.]+)', caseSensitive: false, multiLine: false),
+      'Glucose': RegExp(r'^(?:Glucose|Blood\s+Sugar)\s+([\d.]+)',
+          caseSensitive: false, multiLine: false),
+      'HbA1c':
+          RegExp(r'^HbA1c\s+([\d.]+)', caseSensitive: false, multiLine: false),
+      'Hemoglobin': RegExp(r'^(?:Hemoglobin|Haemoglobin)\s+([\d.]+)',
+          caseSensitive: false, multiLine: false),
+      'Cholesterol': RegExp(r'^(?:Total\s+)?Cholesterol\s+([\d.]+)',
+          caseSensitive: false, multiLine: false),
+      'HDL': RegExp(r'^HDL\s+([\d.]+)', caseSensitive: false, multiLine: false),
+      'LDL': RegExp(r'^LDL\s+([\d.]+)', caseSensitive: false, multiLine: false),
+      'Triglycerides': RegExp(r'^Triglycerides\s+([\d.]+)',
+          caseSensitive: false, multiLine: false),
+    };
+
+    for (var i = 0; i < lines.length; i++) {
+      final line = lines[i].trim();
+      if (line.isEmpty) continue;
+
+      for (var entry in parameterPatterns.entries) {
+        final paramName = entry.key;
+        final pattern = entry.value;
+        final match = pattern.firstMatch(line);
+
+        if (match != null) {
+          final value = match.group(1)!;
+          print('✅ Table format extracted: $paramName = $value');
+
+          // Determine test category
+          String testCategory = 'Blood Test';
+          String testSubCategory = paramName;
+          String unit = 'mg/dL'; // Default unit
+
+          if (['Urea', 'Creatinine', 'Uric Acid'].contains(paramName)) {
+            testCategory = 'Kidney Function Test';
+            testSubCategory = 'Renal';
+            unit = 'mg/dL';
+          } else if ([
+            'Calcium',
+            'Phosphorus',
+            'Sodium',
+            'Potassium',
+            'Chloride'
+          ].contains(paramName)) {
+            testCategory = 'Electrolytes';
+            testSubCategory = 'Minerals';
+            unit = paramName == 'Calcium' || paramName == 'Phosphorus'
+                ? 'mg/dL'
+                : 'mEq/L';
+          } else if (['Total Protein', 'Albumin', 'Alkaline Phosphatase']
+              .contains(paramName)) {
+            testCategory = 'Liver Function Test';
+            testSubCategory = 'Hepatic';
+            unit = paramName == 'Alkaline Phosphatase' ? 'U/L' : 'g/dL';
+          } else if (['TSH', 'T3', 'T4'].contains(paramName)) {
+            testCategory = 'Thyroid Test';
+            testSubCategory = 'Thyroid';
+            unit = paramName == 'TSH' ? 'µIU/mL' : 'ng/dL';
+          } else if (['Glucose', 'HbA1c'].contains(paramName)) {
+            testCategory = 'Blood Sugar Test';
+            testSubCategory = 'Glucose';
+            unit = paramName == 'HbA1c' ? '%' : 'mg/dL';
+          } else if (paramName == 'Hemoglobin') {
+            testCategory = 'Complete Blood Count';
+            testSubCategory = 'CBC';
+            unit = 'g/dL';
+          } else if (['Cholesterol', 'HDL', 'LDL', 'Triglycerides']
+              .contains(paramName)) {
+            testCategory = 'Lipid Profile';
+            testSubCategory = 'Lipids';
+            unit = 'mg/dL';
+          }
+
+          final numValue = double.tryParse(value) ?? 0.0;
+          final status = _determineStatus(paramName, numValue);
+          final normalRanges = _getNormalRange(paramName);
+
+          results.add({
+            'testName': testCategory,
+            'testCategory': testCategory,
+            'testSubCategory': testSubCategory,
+            'parameterName': paramName,
+            'value': value,
+            'unit': unit,
+            'status': status,
+            'referenceRange': _getReferenceRange(paramName),
+            'normalMin': normalRanges['min'],
+            'normalMax': normalRanges['max'],
+          });
+        }
+      }
+    }
+
     return results;
   }
 

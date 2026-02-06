@@ -1,4 +1,5 @@
 import 'dart:io' if (dart.library.html) '../../../core/utils/file_stub.dart';
+import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -24,8 +25,8 @@ class _UploadReportScreenState extends State<UploadReportScreen> {
   bool _hasMedicalContent = false;
   List<String> _detectedParameters = [];
 
-  TestType? _selectedTestType;
-  final _reportDateController = TextEditingController();
+  // TestType? _selectedTestType; // Removed - auto-detection enabled
+  // final _reportDateController = TextEditingController(); // Removed - uses current date
   final _labNameController = TextEditingController();
 
   // Medical keywords for validation
@@ -85,7 +86,7 @@ class _UploadReportScreenState extends State<UploadReportScreen> {
 
   @override
   void dispose() {
-    _reportDateController.dispose();
+    // _reportDateController.dispose(); // Removed
     _labNameController.dispose();
     _textRecognizer?.close();
     super.dispose();
@@ -143,7 +144,28 @@ class _UploadReportScreenState extends State<UploadReportScreen> {
 
       // Validate image clarity and extract text (only on mobile)
       if (!kIsWeb) {
-        final file = File(imageFile.path);
+        // Safely create File with null check
+        final filePath = imageFile.path;
+        if (filePath.isEmpty) {
+          _showError('Invalid file path');
+          setState(() {
+            _isProcessing = false;
+          });
+          return;
+        }
+
+        final file = File(filePath);
+
+        // Verify file exists
+        if (!await file.exists()) {
+          _showError('File not found');
+          setState(() {
+            _isProcessing = false;
+          });
+          return;
+        }
+
+        // Process in background to avoid UI freezing
         await _validateImageClarity(file);
         await _extractTextFromImage(file);
       } else {
@@ -174,22 +196,27 @@ class _UploadReportScreenState extends State<UploadReportScreen> {
         options: ImageLabelerOptions(confidenceThreshold: 0.5),
       );
 
-      final labels = await imageLabeler.processImage(inputImage);
+      // Process in try-catch to handle ML Kit failures
+      try {
+        final labels = await imageLabeler.processImage(inputImage);
 
-      // Check for blur or unclear indicators
-      final hasDocumentLabel = labels.any(
-        (label) =>
-            label.label.toLowerCase().contains('document') ||
-            label.label.toLowerCase().contains('text') ||
-            label.label.toLowerCase().contains('paper'),
-      );
+        // Check for blur or unclear indicators
+        final hasDocumentLabel = labels.any(
+          (label) =>
+              label.label.toLowerCase().contains('document') ||
+              label.label.toLowerCase().contains('text') ||
+              label.label.toLowerCase().contains('paper'),
+        );
 
-      setState(() {
-        _isImageClear = hasDocumentLabel || labels.length > 3;
-      });
-
-      await imageLabeler.close();
+        setState(() {
+          _isImageClear = hasDocumentLabel || labels.length > 3;
+        });
+      } finally {
+        // Always close the labeler
+        await imageLabeler.close();
+      }
     } catch (e) {
+      print('⚠️ Image clarity validation failed: $e');
       // If image labeling fails, assume image is acceptable
       setState(() {
         _isImageClear = true;
@@ -199,11 +226,25 @@ class _UploadReportScreenState extends State<UploadReportScreen> {
 
   Future<void> _extractTextFromImage(File imageFile) async {
     try {
-      if (_textRecognizer == null) return;
+      if (_textRecognizer == null) {
+        print('⚠️ Text recognizer not initialized');
+        setState(() {
+          _extractedText = 'Text recognizer not available';
+          _hasMedicalContent = false;
+        });
+        return;
+      }
 
       final inputImage = InputImage.fromFile(imageFile as dynamic);
+
+      // Process with timeout to prevent hanging
       final RecognizedText recognizedText =
-          await _textRecognizer!.processImage(inputImage);
+          await _textRecognizer!.processImage(inputImage).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw TimeoutException('OCR processing timed out');
+        },
+      );
 
       final StringBuffer extractedText = StringBuffer();
 
@@ -214,17 +255,23 @@ class _UploadReportScreenState extends State<UploadReportScreen> {
       }
 
       final text = extractedText.toString();
-      setState(() {
-        _extractedText = text;
-        _validateMedicalContent(text);
-      });
+
+      if (mounted) {
+        setState(() {
+          _extractedText = text;
+          _validateMedicalContent(text);
+        });
+      }
     } catch (e) {
+      print('❌ Text extraction failed: $e');
       _showError('Failed to extract text: $e');
-      setState(() {
-        _extractedText = 'Failed to extract text from image';
-        _hasMedicalContent = false;
-        _detectedParameters = [];
-      });
+      if (mounted) {
+        setState(() {
+          _extractedText = 'Failed to extract text from image';
+          _hasMedicalContent = false;
+          _detectedParameters = [];
+        });
+      }
     }
   }
 
@@ -271,15 +318,7 @@ class _UploadReportScreenState extends State<UploadReportScreen> {
       return;
     }
 
-    if (_selectedTestType == null) {
-      _showError('Please select a test type');
-      return;
-    }
-
-    if (_reportDateController.text.isEmpty) {
-      _showError('Please select report date');
-      return;
-    }
+    // Removed validation for test type and date - auto-detection enabled
 
     // Validate medical content (skip for web)
     if (!kIsWeb && !_hasMedicalContent) {
@@ -318,9 +357,9 @@ class _UploadReportScreenState extends State<UploadReportScreen> {
 
     final reportProvider = context.read<ReportProvider>();
     final success = await reportProvider.uploadReport(
-      testType: _selectedTestType!.id,
-      testName: _selectedTestType!.name,
-      reportDate: DateTime.parse(_reportDateController.text),
+      testType: 'unknown', // Backend will auto-detect
+      testName: 'Medical Report', // Backend will auto-detect
+      reportDate: DateTime.now(), // Use current date
       imagePath: _selectedImage!.path,
       extractedText: _extractedText,
     );
@@ -329,6 +368,9 @@ class _UploadReportScreenState extends State<UploadReportScreen> {
     if (mounted) Navigator.pop(context);
 
     if (success && mounted) {
+      // Refresh reports to get the updated data with auto-detected test type
+      await reportProvider.fetchReports(forceRefresh: true);
+
       // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -701,15 +743,11 @@ class _UploadReportScreenState extends State<UploadReportScreen> {
 
               const SizedBox(height: 24),
 
-              // Test Type Selection
-              _buildTestTypeSelector(),
+              // Test Type Selection - Removed (auto-detection enabled)
+              // _buildTestTypeSelector(),
 
-              const SizedBox(height: 16),
-
-              // Report Date
-              _buildDateSelector(),
-
-              const SizedBox(height: 16),
+              // Report Date - Removed (uses current date)
+              // _buildDateSelector(),
 
               // Lab Name (Optional)
               TextField(
@@ -872,62 +910,7 @@ class _UploadReportScreenState extends State<UploadReportScreen> {
     );
   }
 
-  Widget _buildTestTypeSelector() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Select Test Type *',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<TestType>(
-          initialValue: _selectedTestType,
-          decoration: const InputDecoration(
-            hintText: 'Choose test type',
-            prefixIcon: Icon(Icons.medical_services),
-          ),
-          items: TestTypeData.availableTests.map((test) {
-            return DropdownMenuItem(
-              value: test,
-              child: Text(test.name),
-            );
-          }).toList(),
-          onChanged: (value) {
-            setState(() {
-              _selectedTestType = value;
-            });
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDateSelector() {
-    return TextField(
-      controller: _reportDateController,
-      readOnly: true,
-      decoration: const InputDecoration(
-        labelText: 'Report Date *',
-        hintText: 'Select date',
-        prefixIcon: Icon(Icons.calendar_today),
-      ),
-      onTap: () async {
-        final date = await showDatePicker(
-          context: context,
-          initialDate: DateTime.now(),
-          firstDate: DateTime(2000),
-          lastDate: DateTime.now(),
-        );
-
-        if (date != null) {
-          setState(() {
-            _reportDateController.text = date.toIso8601String().split('T')[0];
-          });
-        }
-      },
-    );
-  }
+  // Removed _buildTestTypeSelector() and _buildDateSelector() - auto-detection enabled
 
   Widget _buildMedicalValidationStatus() {
     return Container(

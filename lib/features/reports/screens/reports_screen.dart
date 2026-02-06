@@ -181,7 +181,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 final groupedReports = _groupReportsByMonth(filteredReports);
 
                 return RefreshIndicator(
-                  onRefresh: () => reportProvider.fetchReports(),
+                  onRefresh: () => reportProvider.fetchReports(forceRefresh: true),
                   child: ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: groupedReports.length,

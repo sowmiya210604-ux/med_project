@@ -10,6 +10,7 @@ import '../models/report_model.dart';
 import '../providers/report_provider.dart';
 import '../../insights/screens/test_history_screen.dart';
 import '../../../core/services/test_history_service.dart';
+import '../widgets/test_results_table_widget.dart';
 
 class ReportDetailScreen extends StatefulWidget {
   final MedicalReport report;
@@ -32,6 +33,10 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   void initState() {
     super.initState();
     _loadTestHistory();
+    // Force refresh report data to get latest test results
+    Future.microtask(() {
+      context.read<ReportProvider>().fetchReports(forceRefresh: true);
+    });
   }
 
   Future<void> _loadTestHistory() async {
@@ -42,7 +47,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
     try {
       print('🔍 Loading test history for: ${widget.report.testName}');
-      
+
       // Fetch test history from backend API
       final historyData = await TestHistoryService.getTestHistory(
         testName: widget.report.testName,
@@ -225,6 +230,129 @@ Test Results:
     }
   }
 
+  Future<void> _deleteReport() async {
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 28),
+            SizedBox(width: 12),
+            Text('Delete Report?'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Are you sure you want to delete this report?',
+              style: TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.error.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.error),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline,
+                      color: AppColors.error, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'This action cannot be undone.',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.error.withOpacity(0.8),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    // Show loading indicator
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
+    try {
+      final reportProvider = context.read<ReportProvider>();
+      final success = await reportProvider.deleteReport(widget.report.id);
+
+      // Close loading dialog
+      if (mounted) Navigator.of(context).pop();
+
+      if (success) {
+        // Show success message and go back
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Report deleted successfully'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+          Navigator.of(context).pop(); // Go back to reports list
+        }
+      } else {
+        // Show error message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  reportProvider.errorMessage ?? 'Failed to delete report'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Close loading dialog
+      if (mounted) Navigator.of(context).pop();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete report: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -238,6 +366,11 @@ Test Results:
           IconButton(
             icon: const Icon(Icons.download),
             onPressed: _downloadReport,
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline),
+            onPressed: _deleteReport,
+            tooltip: 'Delete Report',
           ),
         ],
       ),
@@ -295,7 +428,7 @@ Test Results:
 
                   // Test Results Table (if available)
                   if (_testHistory.isNotEmpty) ...[
-                    _buildResultsTable(context),
+                    TestResultsTableWidget(testResults: _testHistory),
                     const SizedBox(height: 24),
                   ],
 
@@ -886,9 +1019,8 @@ Test Results:
   }
 
   void _navigateToFullHistory(String parameterName) {
-    final paramResults = _testHistory
-        .where((r) => r.parameterName == parameterName)
-        .toList();
+    final paramResults =
+        _testHistory.where((r) => r.parameterName == parameterName).toList();
 
     Navigator.push(
       context,
@@ -901,4 +1033,3 @@ Test Results:
     );
   }
 }
-

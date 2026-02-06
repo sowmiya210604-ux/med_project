@@ -4,7 +4,11 @@ class File {
   File(this.path);
 
   bool existsSync() => false;
+  Future<bool> exists() async => false;
+  Future<int> length() async => 0;
+  Future<List<int>> readAsBytes() async => [];
   Future<void> writeAsString(String contents) async {}
+  Future<void> writeAsBytes(List<int> bytes) async {}
 }
 
 class Platform {
@@ -14,3 +18,4 @@ class Platform {
   static bool get isMacOS => false;
   static bool get isLinux => false;
 }
+

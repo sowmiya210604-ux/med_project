@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/health_summary_service.dart';
+import '../../auth/models/user_model.dart';
 
 class HealthSummaryCard extends StatefulWidget {
   final List<String> healthConditions;
+  final User? currentUser;
 
-  const HealthSummaryCard({super.key, this.healthConditions = const []});
+  const HealthSummaryCard({
+    super.key,
+    this.healthConditions = const [],
+    this.currentUser,
+  });
 
   @override
   State<HealthSummaryCard> createState() => _HealthSummaryCardState();
@@ -24,7 +30,7 @@ class _HealthSummaryCardState extends State<HealthSummaryCard> {
 
   Future<void> _loadHealthSummary() async {
     if (!mounted) return;
-    
+
     setState(() {
       _isLoading = true;
       _error = null;
@@ -85,6 +91,13 @@ class _HealthSummaryCardState extends State<HealthSummaryCard> {
             ],
           ),
           const SizedBox(height: 16),
+
+          // User Profile Information
+          if (widget.currentUser != null) ...[
+            _buildUserInfo(context),
+            const Divider(height: 32),
+          ],
+
           if (_isLoading)
             const Center(
               child: Padding(
@@ -217,5 +230,140 @@ class _HealthSummaryCardState extends State<HealthSummaryCard> {
       default:
         return Icons.info;
     }
+  }
+
+  Widget _buildUserInfo(BuildContext context) {
+    final user = widget.currentUser!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Name
+        Row(
+          children: [
+            const Icon(Icons.person, size: 18, color: AppColors.primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                user.name,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // Age and Gender
+        Row(
+          children: [
+            if (user.age != null) ...[
+              const Icon(Icons.cake_outlined,
+                  size: 16, color: AppColors.textSecondary),
+              const SizedBox(width: 6),
+              Text(
+                '${user.age} years',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+              ),
+              if (user.gender != null) ...[
+                const SizedBox(width: 16),
+                Container(
+                  width: 4,
+                  height: 4,
+                  decoration: const BoxDecoration(
+                    color: AppColors.textSecondary,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 16),
+              ],
+            ],
+            if (user.gender != null) ...[
+              Icon(
+                user.gender?.toLowerCase() == 'male'
+                    ? Icons.male
+                    : user.gender?.toLowerCase() == 'female'
+                        ? Icons.female
+                        : Icons.person_outline,
+                size: 16,
+                color: AppColors.textSecondary,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                user.gender!,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+              ),
+            ],
+          ],
+        ),
+
+        // Medical History (Past History)
+        if (user.medicalHistory != null && user.medicalHistory!.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.history, size: 16, color: AppColors.warning),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Past History:',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textSecondary,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      user.medicalHistory!,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+
+        // Current Medicines
+        if (user.currentMedicines != null &&
+            user.currentMedicines!.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.medication, size: 16, color: Colors.green),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Current Medicines:',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textSecondary,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      user.currentMedicines!,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
   }
 }
