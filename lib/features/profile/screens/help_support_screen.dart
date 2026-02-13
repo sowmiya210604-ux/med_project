@@ -4,8 +4,6 @@ import '../../../core/theme/app_colors.dart';
 
 class HelpSupportScreen extends StatelessWidget {
   const HelpSupportScreen({super.key});
-<<<<<<< HEAD
-=======
 
   Future<void> _launchEmail(BuildContext context) async {
     final Uri emailUri = Uri(
@@ -66,7 +64,6 @@ class HelpSupportScreen extends StatelessWidget {
       }
     }
   }
->>>>>>> 77aadebe87dfc6bcddee5ff551e232c69dedd002
 
   @override
   Widget build(BuildContext context) {

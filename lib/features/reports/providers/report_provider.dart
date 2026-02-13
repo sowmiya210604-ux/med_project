@@ -156,17 +156,18 @@ class ReportProvider extends ChangeNotifier {
         return false;
       }
 
-      // Extract test data from extracted text
-      final analyzedTestResults = _extractTestDataFromText(extractedText ?? '');
+      // ⚠️ DISABLED FRONTEND EXTRACTION - Now using NEW BACKEND PARSER
+      // final analyzedTestResults = _extractTestDataFromText(extractedText ?? '');
 
       // Merge with provided test results
       final allTestResults = <Map<String, dynamic>>[];
       if (testResults != null) {
         allTestResults.add(testResults);
       }
-      allTestResults.addAll(analyzedTestResults);
+      // ⚠️ DISABLED - Let backend parser handle extraction
+      // allTestResults.addAll(analyzedTestResults);
 
-      print('🚀 Uploading report:');
+      print('🚀 Uploading report (Backend Parser will extract):');
       print('   Test Type: $testType');
       print('   Test Results Count: ${allTestResults.length}');
       print('   OCR Text Length: ${extractedText?.length ?? 0} chars');
@@ -235,7 +236,14 @@ class ReportProvider extends ChangeNotifier {
     print('📝 OCR Text to analyze (${lines.length} lines):');
     print('${text.substring(0, text.length > 200 ? 200 : text.length)}...');
 
-    // First try Labsmart format (for Labsmart Software PDFs)
+    // First try columnar format (KKC LAB style with TEST/RESULT columns)
+    final columnarResults = _extractColumnarFormat(text);
+    if (columnarResults.isNotEmpty) {
+      print('✅ Extracted ${columnarResults.length} results using columnar format');
+      return columnarResults;
+    }
+
+    // Then try Labsmart format (for Labsmart Software PDFs)
     final labsmartResults = _extractLabsmartFormat(text);
     if (labsmartResults.isNotEmpty) {
       print('✅ Extracted ${labsmartResults.length} results using Labsmart format');
@@ -526,6 +534,176 @@ class ReportProvider extends ChangeNotifier {
     }
 
     print('📊 Total extracted test results: ${results.length}');
+    return results;
+  }
+
+  // Extract test data from columnar format (e.g., KKC LAB format)
+  // Handles layouts where TEST, RESULT, UNITS, REFERENCE RANGE are in columns
+  List<Map<String, dynamic>> _extractColumnarFormat(String text) {
+    final results = <Map<String, dynamic>>[];
+    final lines = text.split('\n');
+
+    print('🔍 Trying columnar format extraction...');
+
+    // Find test names and their values
+    final testNames = <String>[];
+    final testValues = <String>[];
+    final testUnits = <String>[];
+    final testReferences = <String>[];
+
+    // Known test parameter mapping
+    final testMapping = {
+      'blood sugar(fasting)': 'Fasting Glucose',
+      'blood sugar (fasting)': 'Fasting Glucose',
+      'fasting glucose': 'Fasting Glucose',
+      'blood sugar(post prandial)': 'Post Prandial Glucose',
+      'blood sugar (post prandial)': 'Post Prandial Glucose',
+      'post prandial': 'Post Prandial Glucose',
+      'blood pressure': 'Blood Pressure',
+      'bp': 'Blood Pressure',
+      'pulse': 'Pulse Rate',
+      'hemoglobin': 'Hemoglobin',
+      'hb': 'Hemoglobin',
+      'cholesterol': 'Total Cholesterol',
+      'triglycerides': 'Triglycerides',
+      'hdl': 'HDL Cholesterol',
+      'ldl': 'LDL Cholesterol',
+      'creatinine': 'Creatinine',
+      'urea': 'Blood Urea',
+      'uric acid': 'Uric Acid',
+    };
+
+    bool inResultSection = false;
+    bool inUnitsSection = false;
+    bool inReferenceSection = false;
+
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i].trim().toLowerCase();
+      
+      // Skip empty lines
+      if (line.isEmpty) continue;
+
+      // Detect section transitions
+      if (line.contains('result') && !line.contains('test')) {
+        inResultSection = true;
+        inUnitsSection = false;
+        inReferenceSection = false;
+        continue;
+      } else if (line.contains('unit')) {
+        inResultSection = false;
+        inUnitsSection = true;
+        inReferenceSection = false;
+        continue;
+      } else if (line.contains('reference') || line.contains('range')) {
+        inResultSection = false;
+        inUnitsSection = false;
+        inReferenceSection = true;
+        continue;
+      }
+
+      // Extract test names (look for known test patterns)
+      for (var entry in testMapping.entries) {
+        if (line.contains(entry.key)) {
+          testNames.add(entry.value);
+          print('  Found test: ${entry.value}');
+          break;
+        }
+      }
+
+      // Extract numeric values when in result section
+      if (inResultSection) {
+        final numPattern = RegExp(r'^\d+\.?\d*$');
+        if (numPattern.hasMatch(line)) {
+          testValues.add(line);
+          print('  Found value: $line');
+        }
+      }
+
+      // Extract units
+      if (inUnitsSection) {
+        if (line.contains('mg/dl') || line.contains('mg/l') || 
+            line.contains('mm of hg') || line.contains('per/min') ||
+            line.contains('g/dl') || line.contains('%')) {
+          testUnits.add(line);
+          print('  Found unit: $line');
+        }
+      }
+
+      // Extract reference ranges
+      if (inReferenceSection) {
+        final rangePattern = RegExp(r'\d+\s*-\s*\d+');
+        if (rangePattern.hasMatch(line)) {
+          testReferences.add(line);
+          print('  Found reference: $line');
+        }
+      }
+    }
+
+    // Try alternative approach: look for test-value pairs by proximity
+    if (testNames.isEmpty || testValues.isEmpty) {
+      print('  Trying proximity-based extraction...');
+      
+      for (int i = 0; i < lines.length; i++) {
+        final line = lines[i].trim().toLowerCase();
+        
+        // Check if line contains a known test name
+        String? foundTest;
+        for (var entry in testMapping.entries) {
+          if (line.contains(entry.key)) {
+            foundTest = entry.value;
+            break;
+          }
+        }
+        
+        if (foundTest != null) {
+          // Look ahead for numeric value
+          for (int j = i + 1; j < lines.length && j < i + 15; j++) {
+            final nextLine = lines[j].trim();
+            final numPattern = RegExp(r'^\d+\.?\d*$');
+            
+            if (numPattern.hasMatch(nextLine)) {
+              testNames.add(foundTest);
+              testValues.add(nextLine);
+              print('  Proximity match: $foundTest = $nextLine');
+              
+              // Look for unit
+              String unit = 'N/A';
+              for (int k = j + 1; k < lines.length && k < j + 10; k++) {
+                final unitLine = lines[k].trim().toLowerCase();
+                if (unitLine.contains('mg/dl')) {
+                  unit = 'mg/dl';
+                  break;
+                } else if (unitLine.contains('mm of hg')) {
+                  unit = 'mm Hg';
+                  break;
+                } else if (unitLine.contains('per/min')) {
+                  unit = 'per/min';
+                  break;
+                }
+              }
+              testUnits.add(unit);
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // Match test names with values and create results
+    final minLength = [testNames.length, testValues.length].reduce((a, b) => a < b ? a : b);
+    
+    for (int i = 0; i < minLength; i++) {
+      final testName = testNames[i];
+      final value = testValues[i];
+      final unit = i < testUnits.length ? testUnits[i] : 'N/A';
+      
+      results.add(_buildTestResult(testName, value, unit));
+    }
+
+    if (results.isNotEmpty) {
+      print('✅ Columnar format extracted ${results.length} parameters');
+    }
+
     return results;
   }
 

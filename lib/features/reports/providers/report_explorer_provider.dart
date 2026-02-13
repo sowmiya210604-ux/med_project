@@ -220,7 +220,9 @@ class ReportExplorerProvider extends ChangeNotifier {
         case LabSubCategory.bloodSugar:
           return testTypeLower.contains('glucose') ||
                  testTypeLower.contains('sugar') ||
-                 testTypeLower.contains('hba1c');
+                 testTypeLower.contains('hba1c') ||
+                 testTypeLower.contains('diabetes') ||
+                 testTypeLower.contains('diabetic');
         case LabSubCategory.lipidProfile:
           return testTypeLower.contains('lipid') ||
                  testTypeLower.contains('cholesterol');

@@ -10,6 +10,8 @@ import '../models/report_model.dart';
 import '../providers/report_provider.dart';
 import '../../insights/screens/test_history_screen.dart';
 import '../../../core/services/test_history_service.dart';
+import '../../../core/services/http_service.dart';
+import '../../../core/config/api_config.dart';
 import '../widgets/test_results_table_widget.dart';
 
 class ReportDetailScreen extends StatefulWidget {
@@ -56,11 +58,9 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       print('📊 Received ${historyData.length} test history results');
 
       if (historyData.isEmpty) {
-        print('⚠️ No test history data received');
-        setState(() {
-          _testHistory = [];
-          _isLoadingHistory = false;
-        });
+        print('⚠️ No test history data, loading current report results...');
+        // Fallback: Load current report's test results
+        await _loadCurrentReportResults();
         return;
       }
 
@@ -92,6 +92,57 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       print('❌ Error loading test history: $e');
       setState(() {
         _historyError = 'Failed to load test history. Please try again.';
+        _isLoadingHistory = false;
+      });
+    }
+  }
+
+  Future<void> _loadCurrentReportResults() async {
+    try {
+      print('📥 Fetching current report test results from API...');
+      
+      final response = await HttpService.get(
+        '${ApiConfig.reportUrl}/${widget.report.id}',
+        requiresAuth: true,
+      );
+
+      print('✅ Got report response: ${response.toString().substring(0, response.toString().length > 200 ? 200 : response.toString().length)}');
+
+      if (response['report'] != null && response['report']['testResults'] != null) {
+        final testResultsData = response['report']['testResults'] as List;
+        
+        final testResults = testResultsData.map((data) {
+          return TestResult(
+            id: data['id']?.toString() ?? '',
+            reportId: widget.report.id,
+            testName: data['testName'] ?? widget.report.testName,
+            parameterName: data['parameterName'] ?? '',
+            value: double.tryParse(data['value']?.toString() ?? '0') ?? 0.0,
+            unit: data['unit'] ?? '',
+            normalMin: (data['normalMin'] as num?)?.toDouble(),
+            normalMax: (data['normalMax'] as num?)?.toDouble(),
+            status: _parseStatus(data['status']),
+            testDate: widget.report.reportDate,
+          );
+        }).toList();
+
+        print('✅ Loaded ${testResults.length} test results from current report');
+
+        setState(() {
+          _testHistory = testResults;
+          _isLoadingHistory = false;
+        });
+      } else {
+        print('⚠️ No test results in response');
+        setState(() {
+          _testHistory = [];
+          _isLoadingHistory = false;
+        });
+      }
+    } catch (e) {
+      print('❌ Error loading current report results: $e');
+      setState(() {
+        _historyError = 'Failed to load report data';
         _isLoadingHistory = false;
       });
     }

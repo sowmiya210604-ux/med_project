@@ -338,6 +338,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               Icons.bloodtype,
                             ),
                         ],
+                        titleAction: IconButton(
+                          icon: const Icon(
+                            Icons.edit,
+                            color: AppColors.primary,
+                            size: 24,
+                          ),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const EditProfileScreen(),
+                              ),
+                            );
+                          },
+                          tooltip: 'Edit Profile',
+                        ),
                       ),
 
                       const SizedBox(height: 16),
@@ -347,20 +363,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         context,
                         'Settings',
                         [
-                          _buildActionTile(
-                            context,
-                            'Edit Profile',
-                            Icons.edit,
-                            () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const EditProfileScreen(),
-                                ),
-                              );
-                            },
-                          ),
                           _buildActionTile(
                             context,
                             'Notifications',
@@ -615,8 +617,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildSection(
     BuildContext context,
     String title,
-    List<Widget> children,
-  ) {
+    List<Widget> children, {
+    Widget? titleAction,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
@@ -624,9 +627,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 12),
-            child: Text(
-              title,
-              style: Theme.of(context).textTheme.titleLarge,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                if (titleAction != null) titleAction,
+              ],
             ),
           ),
           Container(

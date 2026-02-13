@@ -148,15 +148,19 @@ class TestResultsTableWidget extends StatelessWidget {
                       }
 
                       Color statusColor;
+                      String statusText;
                       switch (result.status) {
                         case TestStatus.high:
                           statusColor = AppColors.error;
+                          statusText = 'High';
                           break;
                         case TestStatus.low:
                           statusColor = AppColors.warning;
+                          statusText = 'Low';
                           break;
                         case TestStatus.normal:
                           statusColor = AppColors.success;
+                          statusText = 'Normal';
                           break;
                       }
 
@@ -164,29 +168,17 @@ class TestResultsTableWidget extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: result.status != TestStatus.normal
-                                ? statusColor.withOpacity(0.1)
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(8),
-                            border: result.status != TestStatus.normal
-                                ? Border.all(
-                                    color: statusColor.withOpacity(0.3))
-                                : null,
+                            vertical: 6,
                           ),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
                                 result.value.toString(),
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
-                                  color: result.status != TestStatus.normal
-                                      ? statusColor
-                                      : Colors.black87,
+                                  color: Colors.black87,
                                 ),
                               ),
                               if (result.normalMin != null &&
@@ -198,6 +190,15 @@ class TestResultsTableWidget extends StatelessWidget {
                                     color: AppColors.textSecondary,
                                   ),
                                 ),
+                              const SizedBox(height: 2),
+                              Text(
+                                statusText,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: statusColor,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -208,43 +209,8 @@ class TestResultsTableWidget extends StatelessWidget {
               }).toList(),
             ),
           ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              _buildLegend('Normal', AppColors.success),
-              const SizedBox(width: 16),
-              _buildLegend('High', AppColors.error),
-              const SizedBox(width: 16),
-              _buildLegend('Low', AppColors.warning),
-            ],
-          ),
         ],
       ),
-    );
-  }
-
-  Widget _buildLegend(String label, Color color) {
-    return Row(
-      children: [
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.2),
-            border: Border.all(color: color),
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            color: color,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
     );
   }
 }
