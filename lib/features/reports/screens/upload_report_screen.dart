@@ -8,6 +8,7 @@ import 'package:google_mlkit_image_labeling/google_mlkit_image_labeling.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../providers/report_provider.dart';
+import '../models/report_model.dart';
 
 class UploadReportScreen extends StatefulWidget {
   const UploadReportScreen({super.key});
@@ -406,11 +407,194 @@ class _UploadReportScreenState extends State<UploadReportScreen> {
 
   Future<void> _showAnalysisResults() async {
     final reportProvider = context.read<ReportProvider>();
-    final latestReport =
-        reportProvider.reports.isNotEmpty ? reportProvider.reports.first : null;
+    final analysisResult = reportProvider.analysisResult;
 
-    if (latestReport == null) return;
+    // If no analysis result available, fetch latest report
+    if (analysisResult == null) {
+      final latestReport = reportProvider.reports.isNotEmpty
+          ? reportProvider.reports.first
+          : null;
 
+      if (latestReport == null) return;
+
+      // Fallback to old display method
+      await _showFallbackResults(latestReport);
+      return;
+    }
+
+    await showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        child: Container(
+          constraints: const BoxConstraints(maxHeight: 500, maxWidth: 400),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.analytics,
+                      color: AppColors.primary, size: 32),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Analysis Complete',
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const Divider(),
+              const SizedBox(height: 16),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Test info
+                      _buildResultItem(
+                        'Test Type',
+                        analysisResult['displayName'] ?? 'Blood Test',
+                        Icons.medical_services,
+                      ),
+                      _buildResultItem(
+                        'Report Date',
+                        '${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}',
+                        Icons.calendar_today,
+                      ),
+                      if (analysisResult['confidence'] != null)
+                        _buildResultItem(
+                          'Confidence',
+                          '${(analysisResult['confidence'] * 100).toStringAsFixed(1)}%',
+                          Icons.verified,
+                        ),
+
+                      const SizedBox(height: 16),
+                      Text(
+                        'Extracted Test Results',
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Show extracted parameters
+                      ..._buildExtractedParametersFromAnalysis(analysisResult),
+
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.check_circle, color: AppColors.success),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Report data has been stored in database and is available for tracking.',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.done),
+                  label: const Text('Done'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildExtractedParametersFromAnalysis(
+      Map<String, dynamic> analysisResult) {
+    final List<Widget> widgets = [];
+    final previewData = analysisResult['previewData'] as List<dynamic>?;
+
+    if (previewData != null && previewData.isNotEmpty) {
+      for (var param in previewData) {
+        final testName = param['testName'] ?? param['parameterName'] ?? '';
+        final value = param['value'] ?? '';
+        final unit = param['unit'] ?? '';
+        final referenceRange = param['referenceRange'] ?? '';
+
+        widgets.add(
+          Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.science,
+                    color: AppColors.primary, size: 20),
+              ),
+              title: Text(
+                testName,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: referenceRange.isNotEmpty
+                  ? Text('Normal: $referenceRange',
+                      style: const TextStyle(fontSize: 11))
+                  : null,
+              trailing: Text(
+                '$value ${unit.isNotEmpty ? unit : ''}',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+    }
+
+    if (widgets.isEmpty) {
+      widgets.add(
+        const Card(
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Text(
+              'No test parameters detected in the extracted text.',
+              style: TextStyle(fontStyle: FontStyle.italic),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return widgets;
+  }
+
+  Future<void> _showFallbackResults(MedicalReport latestReport) async {
     await showDialog(
       context: context,
       builder: (context) => Dialog(

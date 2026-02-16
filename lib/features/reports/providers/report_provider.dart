@@ -37,11 +37,17 @@ class ReportProvider extends ChangeNotifier {
   DateTime? _lastFetchTime;
   static const _cacheDuration = Duration(minutes: 5);
 
+  // Schema-based extraction results
+  Map<String, dynamic>? _analysisResult;
+  bool _requiresManualEntry = false;
+
   List<MedicalReport> get reports => _reports;
   List<TestResult> get testResults => _testResults;
   List<String> get healthConditions => _healthConditions;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  Map<String, dynamic>? get analysisResult => _analysisResult;
+  bool get requiresManualEntry => _requiresManualEntry;
 
   // Check if cache is still valid
   bool get _isCacheValid {
@@ -134,7 +140,7 @@ class ReportProvider extends ChangeNotifier {
     }
   }
 
-  // Upload new report
+  // Upload new report using schema-based extraction
   Future<bool> uploadReport({
     required String testType,
     required String testName,
@@ -144,6 +150,8 @@ class ReportProvider extends ChangeNotifier {
     Map<String, dynamic>? testResults,
   }) async {
     _isLoading = true;
+    _analysisResult = null;
+    _requiresManualEntry = false;
     notifyListeners();
 
     try {
@@ -156,63 +164,151 @@ class ReportProvider extends ChangeNotifier {
         return false;
       }
 
-      // ⚠️ DISABLED FRONTEND EXTRACTION - Now using NEW BACKEND PARSER
-      // final analyzedTestResults = _extractTestDataFromText(extractedText ?? '');
-
-      // Merge with provided test results
-      final allTestResults = <Map<String, dynamic>>[];
-      if (testResults != null) {
-        allTestResults.add(testResults);
-      }
-      // ⚠️ DISABLED - Let backend parser handle extraction
-      // allTestResults.addAll(analyzedTestResults);
-
-      print('🚀 Uploading report (Backend Parser will extract):');
-      print('   Test Type: $testType');
-      print('   Test Results Count: ${allTestResults.length}');
+      print('🚀 Analyzing report with schema-based extraction:');
       print('   OCR Text Length: ${extractedText?.length ?? 0} chars');
-      if (allTestResults.isEmpty) {
-        print('⚠️ WARNING: No test results extracted! OCR may have failed.');
-        print('   OCR text preview: ${extractedText?.substring(0, extractedText.length > 200 ? 200 : extractedText.length) ?? "empty"}');
-      } else {
-        print('   First 3 results:');
-        for (var i = 0; i < (allTestResults.length > 3 ? 3 : allTestResults.length); i++) {
-          final r = allTestResults[i];
-          print('      ${i + 1}. ${r['parameterName']}: ${r['value']} ${r['unit']}');
-        }
-      }
+      print('   Report Date: $reportDate');
 
-      // Call backend API to upload report
-      final response = await HttpService.post(
-        ApiConfig.reportUrl,
+      // Step 1: Call /api/extraction/analyze
+      final analyzeResponse = await HttpService.post(
+        '${ApiConfig.extractionUrl}/analyze',
         {
-          'testType': testType,
+          'ocrText': extractedText ?? '',
           'reportDate': reportDate.toIso8601String(),
-          'ocrText': extractedText,
-          'testResults': allTestResults,
         },
         requiresAuth: true,
       );
 
-      print('✅ Backend response received');
+      print('✅ Analysis response received');
+      print('   Success: ${analyzeResponse['success']}');
+      print('   Analysis Complete: ${analyzeResponse['analysisComplete']}');
+      print('   Requires Manual Entry: ${analyzeResponse['requiresManualEntry']}');
+
+      // Store analysis result
+      _analysisResult = analyzeResponse;
+
+      // Check if analysis was successful
+      if (analyzeResponse['analysisComplete'] == true &&
+          analyzeResponse['success'] == true) {
+        // Extraction successful - preview available
+        print('✅ Extraction successful!');
+        print('   Report Type: ${analyzeResponse['reportType']}');
+        print('   Home Category: ${analyzeResponse['homeCategory']}');
+        print('   Parameters: ${analyzeResponse['totalParameters']}');
+        print('   Confidence: ${analyzeResponse['confidence']}');
+
+        // Step 2: Automatically confirm and save (or you can show preview first)
+        final confirmSuccess = await confirmAndSaveReport(
+          reportType: analyzeResponse['reportType'],
+          reportDate: reportDate,
+          parameters: analyzeResponse['parameters'] ?? [],
+          extractedText: extractedText,
+        );
+
+        _isLoading = false;
+        notifyListeners();
+        return confirmSuccess;
+      } else if (analyzeResponse['requiresManualEntry'] == true) {
+        // Manual entry required
+        print('⚠️ Manual entry required');
+        print('   Message: ${analyzeResponse['message']}');
+        _requiresManualEntry = true;
+        _errorMessage = analyzeResponse['message'] ??
+            'Unable to extract data. Please enter manually.';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      } else {
+        // Unknown error
+        _errorMessage = 'Failed to analyze report. Please try again.';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      print('❌ Error uploading report: $e');
+      _errorMessage = 'Failed to upload report: $e';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Confirm and save analyzed report
+  Future<bool> confirmAndSaveReport({
+    required String reportType,
+    required DateTime reportDate,
+    required List<dynamic> parameters,
+    String? extractedText,
+  }) async {
+    try {
+      print('💾 Confirming and saving report...');
+      print('   Report Type: $reportType');
+      print('   Parameters: ${parameters.length}');
+      print('   OCR Text: ${extractedText != null ? 'Present (${extractedText.length} chars)' : 'Not provided'}');
+
+      final response = await HttpService.post(
+        '${ApiConfig.extractionUrl}/confirm-save',
+        {
+          'reportType': reportType,
+          'reportDate': reportDate.toIso8601String(),
+          'parameters': parameters,
+          'ocrText': extractedText,
+        },
+        requiresAuth: true,
+      );
+
+      print('✅ Report saved successfully');
 
       // Get the created report from response
       if (response['report'] != null) {
         final reportData = response['report'];
-        final newReport = MedicalReport.fromJson(reportData);
-        _reports.insert(0, newReport);
 
-        // Add test results from backend response
-        if (reportData['testResults'] != null) {
-          final testResultsList = reportData['testResults'] as List;
-          print('📊 Backend saved ${testResultsList.length} test results');
-          for (var testResult in testResultsList) {
-            _testResults.add(TestResult.fromJson(testResult));
-          }
-        } else {
-          print('⚠️ No test results in backend response');
-        }
+        // Fetch fresh report data to get test results
+        await fetchReports(forceRefresh: true);
       }
+
+      // Re-analyze health conditions
+      _analyzeHealthConditions();
+
+      return true;
+    } catch (e) {
+      print('❌ Error saving report: $e');
+      _errorMessage = 'Failed to save report: $e';
+      return false;
+    }
+  }
+
+  // Manual save for when extraction fails
+  Future<bool> manualSaveReport({
+    required String reportName,
+    required String homeCategory,
+    required DateTime reportDate,
+    required List<Map<String, dynamic>> parameters,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      print('✍️ Manually saving report...');
+      print('   Report Name: $reportName');
+      print('   Home Category: $homeCategory');
+      print('   Parameters: ${parameters.length}');
+
+      final response = await HttpService.post(
+        '${ApiConfig.extractionUrl}/manual-save',
+        {
+          'reportName': reportName,
+          'homeCategory': homeCategory,
+          'reportDate': reportDate.toIso8601String(),
+          'parameters': parameters,
+        },
+        requiresAuth: true,
+      );
+
+      print('✅ Manual report saved successfully');
+
+      // Fetch fresh report data
+      await fetchReports(forceRefresh: true);
 
       // Re-analyze health conditions
       _analyzeHealthConditions();
@@ -221,7 +317,8 @@ class ReportProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _errorMessage = 'Failed to upload report: $e';
+      print('❌ Error manually saving report: $e');
+      _errorMessage = 'Failed to save manual report: $e';
       _isLoading = false;
       notifyListeners();
       return false;

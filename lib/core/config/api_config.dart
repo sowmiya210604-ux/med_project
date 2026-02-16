@@ -53,6 +53,7 @@ class ApiConfig {
   static String get authUrl => '$baseUrl/auth';
   static String get profileUrl => '$baseUrl/auth'; // Profile is part of auth
   static String get reportUrl => '$baseUrl/reports';
+  static String get extractionUrl => '$baseUrl/extraction'; // New schema-based extraction
   static String get healthAnalysisUrl => '$baseUrl/health';
   static String get historyUrl => '$baseUrl/history';
   static String get notificationUrl => '$baseUrl/notifications';

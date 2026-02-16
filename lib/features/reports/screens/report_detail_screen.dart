@@ -68,6 +68,9 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
       // Convert to TestResult objects
       final testResults = historyData.map((data) {
+        // Handle date field (backend returns 'date' for history)
+        final dateStr = data['date'] ?? data['testDate'];
+        
         return TestResult(
           id: data['id']?.toString() ?? '',
           reportId: data['reportId']?.toString() ?? widget.report.id,
@@ -78,7 +81,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
           normalMin: (data['normalMin'] as num?)?.toDouble(),
           normalMax: (data['normalMax'] as num?)?.toDouble(),
           status: _parseStatus(data['status']),
-          testDate: DateTime.parse(data['testDate']),
+          testDate: dateStr != null ? DateTime.parse(dateStr) : DateTime.now(),
         );
       }).toList();
 
