@@ -1142,7 +1142,7 @@ class _UploadReportScreenState extends State<UploadReportScreen> {
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
             ),
             const SizedBox(height: 8),
-            ...(_detectedParameters.take(5).map(
+            ...(_detectedParameters.map(
                   (param) => Padding(
                     padding: const EdgeInsets.only(left: 16, bottom: 4),
                     child: Row(

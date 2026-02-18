@@ -19,9 +19,19 @@ class TestResultChart extends StatelessWidget {
       );
     }
 
-    // Sort results by date
+    // Sort results by date and filter to only numeric values
     final sortedResults = List<TestResult>.from(results)
       ..sort((a, b) => a.testDate.compareTo(b.testDate));
+    
+    // Filter to only numeric values for chart display
+    final numericResults = sortedResults.where((r) => r.value is num).toList();
+    
+    // If no numeric results, don't show chart
+    if (numericResults.isEmpty) {
+      return const Center(
+        child: Text('No numeric data available for chart'),
+      );
+    }
 
     return LineChart(
       LineChartData(
@@ -58,8 +68,8 @@ class TestResultChart extends StatelessWidget {
               reservedSize: 30,
               getTitlesWidget: (value, meta) {
                 if (value.toInt() >= 0 &&
-                    value.toInt() < sortedResults.length) {
-                  final result = sortedResults[value.toInt()];
+                    value.toInt() < numericResults.length) {
+                  final result = numericResults[value.toInt()];
                   return Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(
@@ -90,15 +100,15 @@ class TestResultChart extends StatelessWidget {
           ),
         ),
         minX: 0,
-        maxX: (sortedResults.length - 1).toDouble(),
-        minY: _getMinY(sortedResults),
-        maxY: _getMaxY(sortedResults),
+        maxX: (numericResults.length - 1).toDouble(),
+        minY: _getMinY(numericResults),
+        maxY: _getMaxY(numericResults),
         lineBarsData: [
           LineChartBarData(
-            spots: sortedResults.asMap().entries.map((entry) {
+            spots: numericResults.asMap().entries.map((entry) {
               return FlSpot(
                 entry.key.toDouble(),
-                entry.value.value,
+                (entry.value.value as num).toDouble(),
               );
             }).toList(),
             isCurved: true,
@@ -108,7 +118,7 @@ class TestResultChart extends StatelessWidget {
             dotData: FlDotData(
               show: true,
               getDotPainter: (spot, percent, barData, index) {
-                final result = sortedResults[index];
+                final result = numericResults[index];
                 return FlDotCirclePainter(
                   radius: 6,
                   color: _getStatusColor(result.status),
@@ -130,13 +140,13 @@ class TestResultChart extends StatelessWidget {
             ),
           ),
           // Normal range lines
-          if (sortedResults.first.normalMin != null)
+          if (numericResults.first.normalMin != null)
             LineChartBarData(
               spots: [
-                FlSpot(0, sortedResults.first.normalMin!),
+                FlSpot(0, numericResults.first.normalMin!),
                 FlSpot(
-                  (sortedResults.length - 1).toDouble(),
-                  sortedResults.first.normalMin!,
+                  (numericResults.length - 1).toDouble(),
+                  numericResults.first.normalMin!,
                 ),
               ],
               isCurved: false,
@@ -145,13 +155,13 @@ class TestResultChart extends StatelessWidget {
               dashArray: [5, 5],
               dotData: const FlDotData(show: false),
             ),
-          if (sortedResults.first.normalMax != null)
+          if (numericResults.first.normalMax != null)
             LineChartBarData(
               spots: [
-                FlSpot(0, sortedResults.first.normalMax!),
+                FlSpot(0, numericResults.first.normalMax!),
                 FlSpot(
-                  (sortedResults.length - 1).toDouble(),
-                  sortedResults.first.normalMax!,
+                  (numericResults.length - 1).toDouble(),
+                  numericResults.first.normalMax!,
                 ),
               ],
               isCurved: false,
@@ -166,7 +176,7 @@ class TestResultChart extends StatelessWidget {
             tooltipBgColor: AppColors.primary,
             getTooltipItems: (touchedSpots) {
               return touchedSpots.map((spot) {
-                final result = sortedResults[spot.x.toInt()];
+                final result = numericResults[spot.x.toInt()];
                 return LineTooltipItem(
                   '${result.value} ${result.unit}\n',
                   const TextStyle(
@@ -193,7 +203,7 @@ class TestResultChart extends StatelessWidget {
   }
 
   double _getMinY(List<TestResult> results) {
-    double min = results.map((r) => r.value).reduce((a, b) => a < b ? a : b);
+    double min = results.map((r) => (r.value as num).toDouble()).reduce((a, b) => a < b ? a : b);
 
     // Include normal range in calculation
     if (results.first.normalMin != null) {
@@ -204,7 +214,7 @@ class TestResultChart extends StatelessWidget {
   }
 
   double _getMaxY(List<TestResult> results) {
-    double max = results.map((r) => r.value).reduce((a, b) => a > b ? a : b);
+    double max = results.map((r) => (r.value as num).toDouble()).reduce((a, b) => a > b ? a : b);
 
     // Include normal range in calculation
     if (results.first.normalMax != null) {

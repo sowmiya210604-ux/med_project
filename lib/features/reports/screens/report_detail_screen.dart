@@ -48,7 +48,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     });
 
     try {
-      print('🔍 Loading test history for: ${widget.report.testName}');
+      print('🔍 Loading test history for report: ${widget.report.id}');
 
       // Fetch test history from backend API
       final historyData = await TestHistoryService.getTestHistory(
@@ -64,19 +64,37 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         return;
       }
 
-      print('✅ Test history data: ${historyData.take(2).toList()}');
+      // FILTER: Only show results for THIS report (not historical data from other reports)
+      final currentReportData = historyData.where((data) {
+        return data['reportId']?.toString() == widget.report.id;
+      }).toList();
+
+      print('📋 Filtered to ${currentReportData.length} results for current report');
+      print('✅ Test history data: ${currentReportData.take(2).toList()}');
 
       // Convert to TestResult objects
-      final testResults = historyData.map((data) {
+      final testResults = currentReportData.map((data) {
         // Handle date field (backend returns 'date' for history)
         final dateStr = data['date'] ?? data['testDate'];
+        
+        // Parse value - preserve type (qualitative String or quantitative num)
+        dynamic parsedValue;
+        if (data['value'] is num) {
+          parsedValue = (data['value'] as num).toDouble();
+        } else if (data['value'] is String) {
+          final str = data['value'] as String;
+          final numValue = double.tryParse(str);
+          parsedValue = numValue ?? str; // Keep as string if not numeric
+        } else {
+          parsedValue = 0.0;
+        }
         
         return TestResult(
           id: data['id']?.toString() ?? '',
           reportId: data['reportId']?.toString() ?? widget.report.id,
           testName: data['testName'] ?? widget.report.testName,
           parameterName: data['parameterName'] ?? '',
-          value: (data['value'] as num?)?.toDouble() ?? 0.0,
+          value: parsedValue,
           unit: data['unit'] ?? '',
           normalMin: (data['normalMin'] as num?)?.toDouble(),
           normalMax: (data['normalMax'] as num?)?.toDouble(),
@@ -85,7 +103,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         );
       }).toList();
 
-      print('✅ Converted to ${testResults.length} TestResult objects');
+      print('✅ Converted to ${testResults.length} TestResult objects for current report');
 
       setState(() {
         _testHistory = testResults;
@@ -115,12 +133,24 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         final testResultsData = response['report']['testResults'] as List;
         
         final testResults = testResultsData.map((data) {
+          // Parse value - preserve type (qualitative String or quantitative num)
+          dynamic parsedValue;
+          final rawValue = data['value'];
+          if (rawValue is num) {
+            parsedValue = rawValue.toDouble();
+          } else if (rawValue is String) {
+            final numValue = double.tryParse(rawValue);
+            parsedValue = numValue ?? rawValue; // Keep as string if not numeric
+          } else {
+            parsedValue = 0.0;
+          }
+          
           return TestResult(
             id: data['id']?.toString() ?? '',
             reportId: widget.report.id,
             testName: data['testName'] ?? widget.report.testName,
             parameterName: data['parameterName'] ?? '',
-            value: double.tryParse(data['value']?.toString() ?? '0') ?? 0.0,
+            value: parsedValue,
             unit: data['unit'] ?? '',
             normalMin: (data['normalMin'] as num?)?.toDouble(),
             normalMax: (data['normalMax'] as num?)?.toDouble(),
@@ -654,8 +684,16 @@ Test Results:
 
     // Get the first parameter to display (you can make this selectable)
     final firstParameter = groupedResults.keys.first;
-    final results = groupedResults[firstParameter]!
+    final allResults = groupedResults[firstParameter]!
       ..sort((a, b) => a.testDate.compareTo(b.testDate));
+    
+    // Filter to only numeric values for chart display
+    final results = allResults.where((r) => r.value is num).toList();
+    
+    // If no numeric results, don't show the trend chart
+    if (results.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -769,20 +807,17 @@ Test Results:
                   ),
                   minX: 0,
                   maxX: (results.length - 1).toDouble(),
-                  minY: results
-                          .map((e) => e.value)
-                          .reduce((a, b) => a < b ? a : b) -
-                      5,
-                  maxY: results
-                          .map((e) => e.value)
-                          .reduce((a, b) => a > b ? a : b) +
-                      5,
+                  minY: _getMinY(results),
+                  maxY: _getMaxY(results),
                   lineBarsData: [
                     LineChartBarData(
                       spots: results
                           .asMap()
                           .entries
-                          .map((e) => FlSpot(e.key.toDouble(), e.value.value))
+                          .map((e) => FlSpot(
+                                e.key.toDouble(),
+                                (e.value.value as num).toDouble(),
+                              ))
                           .toList(),
                       isCurved: true,
                       gradient: AppColors.primaryGradient,
@@ -1085,5 +1120,37 @@ Test Results:
         ),
       ),
     );
+  }
+
+  /// Calculate minimum Y-axis value for chart with better scaling
+  double _getMinY(List<TestResult> results) {
+    double min = results.map((r) => (r.value as num).toDouble()).reduce((a, b) => a < b ? a : b);
+
+    // Include normal range in calculation if available
+    if (results.first.normalMin != null) {
+      min = min < results.first.normalMin! ? min : results.first.normalMin!;
+    }
+
+    // Add 10% buffer below minimum, with a minimum range of 20 units
+    double buffer = min * 0.1;
+    if (buffer < 10) buffer = 10;
+    
+    return (min - buffer).floorToDouble();
+  }
+
+  /// Calculate maximum Y-axis value for chart with better scaling
+  double _getMaxY(List<TestResult> results) {
+    double max = results.map((r) => (r.value as num).toDouble()).reduce((a, b) => a > b ? a : b);
+
+    // Include normal range in calculation if available
+    if (results.first.normalMax != null) {
+      max = max > results.first.normalMax! ? max : results.first.normalMax!;
+    }
+
+    // Add 10% buffer above maximum, with a minimum range of 20 units
+    double buffer = max * 0.1;
+    if (buffer < 10) buffer = 10;
+    
+    return (max + buffer).ceilToDouble();
   }
 }

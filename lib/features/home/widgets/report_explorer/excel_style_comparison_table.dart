@@ -280,22 +280,28 @@ class _ExcelStyleComparisonTableState
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (provider.isComparisonMode)
                 Icon(
                   isSelected ? Icons.check_box : Icons.check_box_outline_blank,
-                  size: 20,
+                  size: 18,
                   color: isSelected ? Colors.blue.shade700 : Colors.grey,
                 ),
-              const SizedBox(height: 4),
-              Text(
-                dateStr,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                  color: isSelected ? Colors.blue.shade900 : Colors.black87,
+              if (provider.isComparisonMode)
+                const SizedBox(height: 2),
+              Flexible(
+                child: Text(
+                  dateStr,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 11,
+                    color: isSelected ? Colors.blue.shade900 : Colors.black87,
+                  ),
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2,
                 ),
-                textAlign: TextAlign.center,
               ),
             ],
           ),
@@ -413,12 +419,23 @@ class _ExcelStyleComparisonTableState
           ),
         ),
         ...reports.map((report) {
-          final normalCount = report.parameters.values
-              .where((p) => (p.status ?? 'NORMAL') == 'NORMAL')
+          // Only count parameters that have actual values (not empty placeholders)
+          final parametersWithValues = report.parameters.values
+              .where((p) {
+                if (p.value == null) return false;
+                final valueStr = p.value.toString();
+                return valueStr.isNotEmpty && valueStr != '-';
+              })
+              .toList();
+          
+          final normalCount = parametersWithValues
+              .where((p) => (p.status ?? 'normal') == 'normal')
               .length;
-          final totalCount = report.parameters.length;
-          final status = normalCount == totalCount ? 'Normal' : 'Attention Needed';
-          final statusColor = normalCount == totalCount ? Colors.green : Colors.orange;
+          final totalCount = parametersWithValues.length;
+          final status = totalCount == 0 ? 'No Data' : 
+                        (normalCount == totalCount ? 'Normal' : 'Attention Needed');
+          final statusColor = totalCount == 0 ? Colors.grey :
+                             (normalCount == totalCount ? Colors.green : Colors.orange);
 
           return DataCell(
             SizedBox(
@@ -558,8 +575,8 @@ class _ExcelStyleComparisonTableState
     Color trendColor = Colors.grey;
 
     if (value1 != null && value2 != null) {
-      final num1 = double.tryParse(value1.value);
-      final num2 = double.tryParse(value2.value);
+      final num1 = double.tryParse(value1.value.toString());
+      final num2 = double.tryParse(value2.value.toString());
 
       if (num1 != null && num2 != null) {
         final diff = num2 - num1;
@@ -601,15 +618,17 @@ class _ExcelStyleComparisonTableState
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Older', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                    Text(
-                      value1 != null ? '${value1.value} ${value1.unit ?? ''}' : '-',
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                  ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Older', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      Text(
+                        value1 != null ? '${value1.value.toString()} ${value1.unit}' : '-',
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ],
+                  ),
                 ),
                 Column(
                   children: [
@@ -630,15 +649,17 @@ class _ExcelStyleComparisonTableState
                     ),
                   ],
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    const Text('Newer', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                    Text(
-                      value2 != null ? '${value2.value} ${value2.unit ?? ''}' : '-',
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                  ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      const Text('Newer', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      Text(
+                        value2 != null ? '${value2.value.toString()} ${value2.unit}' : '-',
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),

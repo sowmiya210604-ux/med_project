@@ -71,7 +71,7 @@ class TestResult {
   final String reportId;
   final String testName;
   final String parameterName;
-  final double value;
+  final dynamic value; // Can be String (qualitative) or num (quantitative)
   final String unit;
   final double? normalMin;
   final double? normalMax;
@@ -92,12 +92,17 @@ class TestResult {
   });
 
   factory TestResult.fromJson(Map<String, dynamic> json) {
-    // Parse value - backend stores as string
-    double parsedValue = 0.0;
+    // Parse value - preserve type (qualitative String or quantitative num)
+    dynamic parsedValue;
     if (json['value'] is num) {
       parsedValue = (json['value'] as num).toDouble();
     } else if (json['value'] is String) {
-      parsedValue = double.tryParse(json['value']) ?? 0.0;
+      final str = json['value'] as String;
+      final numValue = double.tryParse(str);
+      // If it's a valid number, convert it; otherwise keep as string
+      parsedValue = numValue ?? str;
+    } else {
+      parsedValue = 0.0;
     }
 
     // Parse reference range into normalMin and normalMax
